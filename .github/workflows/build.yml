@@ -18,49 +18,39 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Accept Android SDK Licenses
-        run: |
-          yes | sdkmanager --licenses || true
-
-      - name: Prepare Android Project
+      - name: Create Native Android Project
         run: |
           mkdir -p app/src/main/java/com/childsafety/tracker
           mkdir -p app/src/main/res/values
 
           # 1. settings.gradle
           cat << 'EOF' > settings.gradle
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
           rootProject.name = "ChildSafetyApp"
           include ':app'
           EOF
 
           # 2. root build.gradle
           cat << 'EOF' > build.gradle
-          plugins {
-              id 'com.android.application' version '8.2.2' apply false
-              id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.2.2'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
           }
           EOF
 
           # 3. app/build.gradle
           cat << 'EOF' > app/build.gradle
-          plugins {
-              id 'com.android.application'
-              id 'org.jetbrains.kotlin.android'
-          }
+          apply plugin: 'com.android.application'
 
           android {
               namespace 'com.childsafety.tracker'
@@ -83,20 +73,14 @@ jobs:
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
               }
-              kotlinOptions {
-                  jvmTarget = '17'
-              }
           }
 
           dependencies {
-              implementation 'androidx.core:core-ktx:1.12.0'
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              implementation 'com.google.android.gms:play-services-location:21.1.0'
-              implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+              // बाहेरील कोणत्याही अवजड लायब्ररीची गरज नाही
           }
           EOF
 
-          # 4. strings.xml (रिसोर्स त्रुटी टाळण्यासाठी)
+          # 4. strings.xml
           cat << 'EOF' > app/src/main/res/values/strings.xml
           <resources>
               <string name="app_name">Child Safety</string>
@@ -116,8 +100,7 @@ jobs:
 
               <application
                   android:allowBackup="true"
-                  android:label="@string/app_name"
-                  android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+                  android:label="@string/app_name">
 
                   <activity
                       android:name=".MainActivity"
@@ -136,136 +119,136 @@ jobs:
           </manifest>
           EOF
 
-          # 6. MainActivity.kt
-          cat << 'EOF' > app/src/main/java/com/childsafety/tracker/MainActivity.kt
-          package com.childsafety.tracker
+          # 6. MainActivity.java
+          cat << 'EOF' > app/src/main/java/com/childsafety/tracker/MainActivity.java
+          package com.childsafety.tracker;
 
-          import android.Manifest
-          import android.content.Intent
-          import android.os.Build
-          import android.os.Bundle
-          import android.widget.Button
-          import android.widget.TextView
-          import androidx.appcompat.app.AppCompatActivity
-          import androidx.core.app.ActivityCompat
+          import android.Manifest;
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.widget.Button;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
 
-          class MainActivity : AppCompatActivity() {
+          public class MainActivity extends Activity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
 
-              override fun onCreate(savedInstanceState: Bundle?) {
-                  super.onCreate(savedInstanceState)
+                  LinearLayout layout = new LinearLayout(this);
+                  layout.setOrientation(LinearLayout.VERTICAL);
+                  layout.setPadding(50, 100, 50, 50);
 
-                  val layout = android.widget.LinearLayout(this).apply {
-                      orientation = android.widget.LinearLayout.VERTICAL
-                      setPadding(50, 100, 50, 50)
-                  }
+                  final TextView statusText = new TextView(this);
+                  statusText.setText("Child Safety Service: बंद आहे");
+                  statusText.setTextSize(18f);
 
-                  val statusText = TextView(this).apply {
-                      text = "Child Safety Service: बंद आहे"
-                      textSize = 18f
-                  }
-
-                  val btnStart = Button(this).apply {
-                      text = "सुरक्षा व ट्रॅकिंग सुरू करा"
-                      setOnClickListener {
-                          checkPermissionsAndStart()
-                          statusText.text = "Child Safety Service: सुरू आहे!"
+                  Button btnStart = new Button(this);
+                  btnStart.setText("सुरक्षा व ट्रॅकिंग सुरू करा");
+                  btnStart.setOnClickListener(v -> {
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                          requestPermissions(new String[]{
+                              Manifest.permission.ACCESS_FINE_LOCATION,
+                              Manifest.permission.ACCESS_COARSE_LOCATION
+                          }, 101);
                       }
-                  }
+                      Intent intent = new Intent(MainActivity.this, LocationService.class);
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                          startForegroundService(intent);
+                      } else {
+                          startService(intent);
+                      }
+                      statusText.setText("Child Safety Service: सक्रिय (Active) आहे!");
+                  });
 
-                  layout.addView(statusText)
-                  layout.addView(btnStart)
-                  setContentView(layout)
-              }
-
-              private fun checkPermissionsAndStart() {
-                  val permissions = mutableListOf(
-                      Manifest.permission.ACCESS_FINE_LOCATION,
-                      Manifest.permission.ACCESS_COARSE_LOCATION
-                  )
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                      permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-                  }
-
-                  ActivityCompat.requestPermissions(this, permissions.toTypedArray(), 101)
-
-                  val intent = Intent(this, LocationService::class.java)
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                      startForegroundService(intent)
-                  } else {
-                      startService(intent)
-                  }
+                  layout.addView(statusText);
+                  layout.addView(btnStart);
+                  setContentView(layout);
               }
           }
           EOF
 
-          # 7. LocationService.kt
-          cat << 'EOF' > app/src/main/java/com/childsafety/tracker/LocationService.kt
-          package com.childsafety.tracker
+          # 7. LocationService.java
+          cat << 'EOF' > app/src/main/java/com/childsafety/tracker/LocationService.java
+          package com.childsafety.tracker;
 
-          import android.annotation.SuppressLint
-          import android.app.*
-          import android.content.Intent
-          import android.os.Build
-          import android.os.IBinder
-          import android.os.Looper
-          import androidx.core.app.NotificationCompat
-          import com.google.android.gms.location.*
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.Service;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.location.Location;
+          import android.location.LocationListener;
+          import android.location.LocationManager;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.os.IBinder;
 
-          class LocationService : Service() {
+          public class LocationService extends Service implements LocationListener {
+              private LocationManager locationManager;
 
-              private lateinit var fusedLocationClient: FusedLocationProviderClient
-              private lateinit var locationCallback: LocationCallback
-
-              override fun onCreate() {
-                  super.onCreate()
-                  fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-                  startForegroundNotification()
-                  setupTracking()
+              @Override
+              public void onCreate() {
+                  super.onCreate();
+                  startForegroundNotification();
+                  setupLocationTracking();
               }
 
-              private fun startForegroundNotification() {
-                  val channelId = "child_safety_channel"
+              private void startForegroundNotification() {
+                  String channelId = "child_safety_channel";
                   if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                      val channel = NotificationChannel(
-                          channelId,
-                          "Protection Active",
-                          NotificationManager.IMPORTANCE_LOW
-                      )
-                      val manager = getSystemService(NotificationManager::class.java)
-                      manager.createNotificationChannel(channel)
+                      NotificationChannel channel = new NotificationChannel(
+                          channelId, "Protection Active", NotificationManager.IMPORTANCE_LOW
+                      );
+                      NotificationManager manager = getSystemService(NotificationManager.class);
+                      if (manager != null) manager.createNotificationChannel(channel);
+
+                      Notification notification = new Notification.Builder(this, channelId)
+                          .setContentTitle("सुरक्षा सेवा सुरू आहे")
+                          .setContentText("लाईव्ह ट्रॅकिंग सक्रिय आहे.")
+                          .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+                          .build();
+                      startForeground(1001, notification);
                   }
-
-                  val notification = NotificationCompat.Builder(this, channelId)
-                      .setContentTitle("सुरक्षा सेवा सुरू आहे")
-                      .setContentText("लाईव्ह ट्रॅकिंग सक्रिय आहे.")
-                      .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-                      .setOngoing(true)
-                      .build()
-
-                  startForeground(1001, notification)
               }
 
-              @SuppressLint("MissingPermission")
-              private fun setupTracking() {
-                  val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000).build()
-
-                  locationCallback = object : LocationCallback() {
-                      override fun onLocationResult(result: LocationResult) {
-                          for (location in result.locations) {
-                              // Location received
-                          }
+              private void setupLocationTracking() {
+                  locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+                  try {
+                      if (locationManager != null) {
+                          locationManager.requestLocationUpdates(
+                              LocationManager.GPS_PROVIDER, 5000, 5f, this
+                          );
                       }
+                  } catch (SecurityException e) {
+                      e.printStackTrace();
                   }
-
-                  fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
               }
 
-              override fun onDestroy() {
-                  super.onDestroy()
-                  fusedLocationClient.removeLocationUpdates(locationCallback)
+              @Override
+              public void onLocationChanged(Location location) {
+                  // मुलाचे लाईव्ह लोकेशन इथे मिळते
               }
 
-              override fun onBind(intent: Intent?): IBinder? = null
+              @Override
+              public void onStatusChanged(String provider, int status, Bundle extras) {}
+              @Override
+              public void onProviderEnabled(String provider) {}
+              @Override
+              public void onProviderDisabled(String provider) {}
+
+              @Override
+              public void onDestroy() {
+                  super.onDestroy();
+                  if (locationManager != null) locationManager.removeUpdates(this);
+              }
+
+              @Override
+              public IBinder onBind(Intent intent) { return null; }
           }
           EOF
 
@@ -273,6 +256,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.5'
+          cache-disabled: true
 
       - name: Build APK with Gradle
         run: gradle assembleDebug --no-daemon
