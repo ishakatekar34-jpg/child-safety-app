@@ -18,10 +18,11 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Create All-in-One Android App
+      - name: Create Complete Child Safety System
         run: |
           mkdir -p app/src/main/java/com/childsafety/tracker
           mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/xml
 
           # 1. settings.gradle
           cat << 'EOF' > settings.gradle
@@ -60,8 +61,8 @@ jobs:
                   applicationId "com.childsafety.tracker"
                   minSdk 24
                   targetSdk 34
-                  versionCode 2
-                  versionName "2.0"
+                  versionCode 3
+                  versionName "3.0"
               }
 
               buildTypes {
@@ -79,11 +80,24 @@ jobs:
           # 4. strings.xml
           cat << 'EOF' > app/src/main/res/values/strings.xml
           <resources>
-              <string name="app_name">Family Safety 360</string>
+              <string name="app_name">Family Safety 360 Pro</string>
+              <string name="accessibility_desc">Child Safety App Protection Service</string>
           </resources>
           EOF
 
-          # 5. AndroidManifest.xml
+          # 5. Accessibility Config XML (App Blocking साठी)
+          cat << 'EOF' > app/src/main/res/xml/accessibility_service_config.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+              android:accessibilityEventTypes="typeWindowStateChanged"
+              android:accessibilityFeedbackType="feedbackGeneric"
+              android:accessibilityFlags="flagDefault"
+              android:canRetrieveWindowContent="true"
+              android:description="@string/accessibility_desc"
+              android:notificationTimeout="100" />
+          EOF
+
+          # 6. AndroidManifest.xml
           cat << 'EOF' > app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -112,275 +126,57 @@ jobs:
                       android:name=".LocationService"
                       android:foregroundServiceType="location"
                       android:exported="false" />
+
+                  <service
+                      android:name=".SafetyAccessibilityService"
+                      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+                      android:exported="false">
+                      <intent-filter>
+                          <action android:name="android.accessibilityservice.AccessibilityService" />
+                      </intent-filter>
+                      <meta-data
+                          android:name="android.accessibilityservice"
+                          android:resource="@xml/accessibility_service_config" />
+                  </service>
               </application>
           </manifest>
           EOF
 
-          # 6. MainActivity.java (Parent + 3 Children Inbuilt Dashboard)
-          cat << 'EOF' > app/src/main/java/com/childsafety/tracker/MainActivity.java
+          # 7. SafetyAccessibilityService.java (App Blocking Logic)
+          cat << 'EOF' > app/src/main/java/com/childsafety/tracker/SafetyAccessibilityService.java
           package com.childsafety.tracker;
 
-          import android.Manifest;
-          import android.app.Activity;
+          import android.accessibilityservice.AccessibilityService;
           import android.content.Context;
-          import android.content.Intent;
           import android.content.SharedPreferences;
-          import android.net.Uri;
-          import android.os.Build;
-          import android.os.Bundle;
-          import android.os.Handler;
-          import android.view.View;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-          import android.widget.*;
-          import org.json.JSONObject;
-          import java.io.BufferedReader;
-          import java.io.InputStreamReader;
-          import java.net.HttpURLConnection;
-          import java.net.URL;
+          import android.view.accessibility.AccessibilityEvent;
+          import android.widget.Toast;
 
-          public class MainActivity extends Activity {
-              private SharedPreferences prefs;
-              private Handler refreshHandler = new Handler();
-              private String selectedChild = "1";
-              private double currentLat = 0, currentLng = 0;
-              private WebView mapWebView;
-              private TextView statusText;
+          public class SafetyAccessibilityService extends AccessibilityService {
+              @Override
+              public void onAccessibilityEvent(AccessibilityEvent event) {
+                  if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+                      CharSequence pkgName = event.getPackageName();
+                      if (pkgName == null) return;
+
+                      SharedPreferences prefs = getSharedPreferences("FamilyTrackerPrefs", Context.MODE_PRIVATE);
+                      boolean isBlocked = prefs.getBoolean("block_games", false);
+
+                      // ब्लॉक केलेल्या पॅकेजेसची यादी (उदा. YouTube, Games)
+                      String currentPkg = pkgName.toString().toLowerCase();
+                      if (isBlocked && (currentPkg.contains("youtube") || currentPkg.contains("freefire") || currentPkg.contains("pubg") || currentPkg.contains("instagram"))) {
+                          performGlobalAction(GLOBAL_ACTION_HOME); // थेट होम स्क्रीनवर पाठवा
+                          Toast.makeText(this, "पालकांनी हे ॲप ब्लॉक केले आहे!", Toast.LENGTH_LONG).show();
+                      }
+                  }
+              }
 
               @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  prefs = getSharedPreferences("FamilyTrackerPrefs", Context.MODE_PRIVATE);
-
-                  String role = prefs.getString("user_role", "");
-                  if (role.equals("PARENT")) {
-                      showParentDashboard();
-                  } else if (role.equals("CHILD")) {
-                      showChildScreen();
-                  } else {
-                      showRoleSelectionScreen();
-                  }
-              }
-
-              // १. पहिला स्क्रीन: मोड निवडणे (पालक की मुलगा)
-              private void showRoleSelectionScreen() {
-                  LinearLayout layout = new LinearLayout(this);
-                  layout.setOrientation(LinearLayout.VERTICAL);
-                  layout.setPadding(40, 80, 40, 40);
-
-                  TextView title = new TextView(this);
-                  title.setText("Family Safety 360\n(३ मुलांसाठी सुरक्षा सिस्टीम)");
-                  title.setTextSize(22f);
-                  title.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
-                  layout.addView(title);
-
-                  TextView lblCode = new TextView(this);
-                  lblCode.setText("\nFamily Secret Code (उदा. तुमचा मोबाईल नंबर टाका):");
-                  layout.addView(lblCode);
-
-                  final EditText edtCode = new EditText(this);
-                  edtCode.setHint("Family Code (उदा. 9876543210)");
-                  edtCode.setText(prefs.getString("family_code", ""));
-                  layout.addView(edtCode);
-
-                  Button btnParent = new Button(this);
-                  btnParent.setText("👨‍👩‍👧‍👦 मी पालक आहे (तिन्ही मुलांवर लक्ष ठेवा)");
-                  btnParent.setOnClickListener(v -> {
-                      String code = edtCode.getText().toString().trim();
-                      if (code.isEmpty()) { Toast.makeText(this, "कृपया Family Code टाका!", Toast.LENGTH_SHORT).show(); return; }
-                      prefs.edit().putString("family_code", code).putString("user_role", "PARENT").apply();
-                      showParentDashboard();
-                  });
-                  layout.addView(btnParent);
-
-                  Button btnChild = new Button(this);
-                  btnChild.setText("👦 हा मुलाचा फोन आहे (ट्रॅकिंग सुरू करा)");
-                  btnChild.setOnClickListener(v -> {
-                      String code = edtCode.getText().toString().trim();
-                      if (code.isEmpty()) { Toast.makeText(this, "कृपया Family Code टाका!", Toast.LENGTH_SHORT).show(); return; }
-                      prefs.edit().putString("family_code", code).putString("user_role", "CHILD").apply();
-                      showChildScreen();
-                  });
-                  layout.addView(btnChild);
-
-                  setContentView(layout);
-              }
-
-              // २. मुलाचा स्क्रीन (Child Mode)
-              private void showChildScreen() {
-                  LinearLayout layout = new LinearLayout(this);
-                  layout.setOrientation(LinearLayout.VERTICAL);
-                  layout.setPadding(40, 80, 40, 40);
-
-                  TextView title = new TextView(this);
-                  title.setText("मुलाचा फोन सेटअप");
-                  title.setTextSize(20f);
-                  layout.addView(title);
-
-                  TextView lbl = new TextView(this);
-                  lbl.setText("\nहा फोन नक्की कोणाचा आहे ते निवडा:");
-                  layout.addView(lbl);
-
-                  String[] kids = {"मुलगा १ (Child 1)", "मुलगा २ (Child 2)", "मुलगा ३ (Child 3)"};
-                  final Spinner spinner = new Spinner(this);
-                  ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, kids);
-                  spinner.setAdapter(adapter);
-                  spinner.setSelection(prefs.getInt("child_number", 1) - 1);
-                  layout.addView(spinner);
-
-                  final TextView status = new TextView(this);
-                  status.setText("\nस्टेटस: सुरक्षा ट्रॅकिंग चालू आहे.");
-                  status.setTextSize(16f);
-
-                  Button btnStart = new Button(this);
-                  btnStart.setText("सुरक्षा व GPS ट्रॅकिंग सुरू करा");
-                  btnStart.setOnClickListener(v -> {
-                      int childNum = spinner.getSelectedItemPosition() + 1;
-                      prefs.edit().putInt("child_number", childNum).apply();
-
-                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                          requestPermissions(new String[]{
-                              Manifest.permission.ACCESS_FINE_LOCATION,
-                              Manifest.permission.ACCESS_COARSE_LOCATION
-                          }, 101);
-                      }
-                      Intent intent = new Intent(this, LocationService.class);
-                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                          startForegroundService(intent);
-                      } else {
-                          startService(intent);
-                      }
-                      status.setText("\nस्टेटस: मुलगा " + childNum + " चे लोकेशन पालकांना जात आहे!");
-                  });
-                  layout.addView(btnStart);
-                  layout.addView(status);
-
-                  Button btnReset = new Button(this);
-                  btnReset.setText("मोड बदला (Change Role)");
-                  btnReset.setOnClickListener(v -> {
-                      prefs.edit().clear().apply();
-                      showRoleSelectionScreen();
-                  });
-                  layout.addView(btnReset);
-
-                  setContentView(layout);
-              }
-
-              // ३. पालकांचा डॅशबोर्ड (Parent Dashboard: तिन्ही मुलांचा नकाशा एकाच जागी)
-              private void showParentDashboard() {
-                  LinearLayout layout = new LinearLayout(this);
-                  layout.setOrientation(LinearLayout.VERTICAL);
-                  layout.setPadding(20, 40, 20, 20);
-
-                  TextView title = new TextView(this);
-                  title.setText("पालक नियंत्रण - ३ मुले डॅशबोर्ड");
-                  title.setTextSize(18f);
-                  layout.addView(title);
-
-                  // ३ मुलांचे टॅब बटन्स
-                  LinearLayout btnLayout = new LinearLayout(this);
-                  btnLayout.setOrientation(LinearLayout.HORIZONTAL);
-
-                  for (int i = 1; i <= 3; i++) {
-                      final String id = String.valueOf(i);
-                      Button b = new Button(this);
-                      b.setText("मुलगा " + id);
-                      b.setOnClickListener(v -> {
-                          selectedChild = id;
-                          fetchChildLocation();
-                      });
-                      btnLayout.addView(b);
-                  }
-                  layout.addView(btnLayout);
-
-                  statusText = new TextView(this);
-                  statusText.setText("\nमुलगा १ चे लोकेशन शोधत आहे...");
-                  layout.addView(statusText);
-
-                  Button btnGmaps = new Button(this);
-                  btnGmaps.setText("📍 थेट Google Maps मध्ये उघडा");
-                  btnGmaps.setOnClickListener(v -> {
-                      if (currentLat != 0 && currentLng != 0) {
-                          Intent gmaps = new Intent(Intent.ACTION_VIEW, Uri.parse("geo:" + currentLat + "," + currentLng + "?q=" + currentLat + "," + currentLng + "(Child " + selectedChild + ")"));
-                          startActivity(gmaps);
-                      } else {
-                          Toast.makeText(this, "अजून लोकेशन मिळालेले नाही!", Toast.LENGTH_SHORT).show();
-                      }
-                  });
-                  layout.addView(btnGmaps);
-
-                  mapWebView = new WebView(this);
-                  mapWebView.getSettings().setJavaScriptEnabled(true);
-                  mapWebView.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 800));
-                  layout.addView(mapWebView);
-
-                  Button btnReset = new Button(this);
-                  btnReset.setText("मोड बदला (Change Role)");
-                  btnReset.setOnClickListener(v -> {
-                      prefs.edit().clear().apply();
-                      showRoleSelectionScreen();
-                  });
-                  layout.addView(btnReset);
-
-                  setContentView(layout);
-                  startAutoRefresh();
-              }
-
-              private void startAutoRefresh() {
-                  refreshHandler.postDelayed(new Runnable() {
-                      @Override
-                      public void run() {
-                          fetchChildLocation();
-                          refreshHandler.postDelayed(this, 10000); // दर १० सेकंदांनी अपडेट
-                      }
-                  }, 1000);
-              }
-
-              private void fetchChildLocation() {
-                  new Thread(() -> {
-                      try {
-                          String familyCode = prefs.getString("family_code", "family");
-                          String topic = "fam_" + familyCode + "_c" + selectedChild;
-                          URL url = new URL("https://ntfy.sh/" + topic + "/json?poll=1&since=latest");
-                          HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                          conn.setRequestMethod("GET");
-                          conn.setConnectTimeout(4000);
-
-                          if (conn.getResponseCode() == 200) {
-                              BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                              String line;
-                              String lastMsg = "";
-                              while ((line = reader.readLine()) != null) {
-                                  JSONObject obj = new JSONObject(line);
-                                  if (obj.has("message")) lastMsg = obj.getString("message");
-                              }
-                              reader.close();
-
-                              if (!lastMsg.isEmpty()) {
-                                  String[] parts = lastMsg.split(",");
-                                  currentLat = Double.parseDouble(parts[0]);
-                                  currentLng = Double.parseDouble(parts[1]);
-
-                                  runOnUiThread(() -> {
-                                      statusText.setText("👦 मुलगा " + selectedChild + " चे सध्याचे लोकेशन:\nअक्षांश: " + currentLat + ", रेखांश: " + currentLng);
-                                      loadMap(currentLat, currentLng);
-                                  });
-                              }
-                          }
-                      } catch (Exception e) {
-                          e.printStackTrace();
-                      }
-                  }).start();
-              }
-
-              private void loadMap(double lat, double lng) {
-                  String html = "<html><head><link rel='stylesheet' href='https://unpkg.com/leaflet/dist/leaflet.css'/><script src='https://unpkg.com/leaflet/dist/leaflet.js'></script></head><body style='margin:0;padding:0;'><div id='map' style='width:100%;height:100vh;'></div><script>var map=L.map('map').setView([" + lat + "," + lng + "],16);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);L.marker([" + lat + "," + lng + "]).addTo(map).bindPopup('मुलगा " + selectedChild + "').openPopup();</script></body></html>";
-                  mapWebView.loadData(html, "text/html", "UTF-8");
-              }
+              public void onInterrupt() {}
           }
           EOF
 
-          # 7. LocationService.java (मुलाचे लोकेशन क्लाउडवर पाठवणारी सर्विस)
+          # 8. LocationService.java (Location, Route History, Stops & Geofencing)
           cat << 'EOF' > app/src/main/java/com/childsafety/tracker/LocationService.java
           package com.childsafety.tracker;
 
@@ -404,6 +200,8 @@ jobs:
           public class LocationService extends Service implements LocationListener {
               private LocationManager locationManager;
               private SharedPreferences prefs;
+              private Location lastLocation = null;
+              private long stopStartTime = 0;
 
               @Override
               public void onCreate() {
@@ -449,6 +247,39 @@ jobs:
               public void onLocationChanged(Location location) {
                   final double lat = location.getLatitude();
                   final double lng = location.getLongitude();
+                  final long now = System.currentTimeMillis();
+
+                  boolean isStop = false;
+                  long stopDuration = 0;
+
+                  // थांब्यांचे लॉजिक (Stop Detection): जर अंतर ५० मीटरपेक्षा कमी असेल
+                  if (lastLocation != null) {
+                      float distance = lastLocation.distanceTo(location);
+                      if (distance < 50) {
+                          if (stopStartTime == 0) stopStartTime = now;
+                          stopDuration = (now - stopStartTime) / 60000; // मिनिटे
+                          if (stopDuration >= 3) isStop = true; // ३ मिनिटांपेक्षा जास्त थांबल्यास "थांबा"
+                      } else {
+                          stopStartTime = 0;
+                      }
+                  }
+                  lastLocation = location;
+
+                  // Geofence अलर्ट चेक (उदा. सुरक्षित क्षेत्रापासून अंतर)
+                  String alertMsg = "";
+                  float[] results = new float[1];
+                  double safeLat = Double.longBitsToDouble(prefs.getLong("safe_lat", 0));
+                  double safeLng = Double.longBitsToDouble(prefs.getLong("safe_lng", 0));
+                  if (safeLat != 0 && safeLng != 0) {
+                      Location.distanceBetween(lat, lng, safeLat, safeLng, results);
+                      if (results[0] > 500) { // ५०० मीटरच्या बाहेर गेल्यास
+                          alertMsg = "ALERT: मुलगा सुरक्षित क्षेत्राबाहेर गेला आहे!";
+                      }
+                  }
+
+                  final boolean finalIsStop = isStop;
+                  final long finalDuration = stopDuration;
+                  final String finalAlert = alertMsg;
 
                   new Thread(() -> {
                       try {
@@ -461,7 +292,8 @@ jobs:
                           conn.setRequestMethod("POST");
                           conn.setDoOutput(true);
 
-                          String payload = lat + "," + lng + "," + System.currentTimeMillis();
+                          // डेटा फॉरमॅट: lat,lng,time,isStop,stopDuration,alert
+                          String payload = lat + "," + lng + "," + now + "," + (finalIsStop ? "1" : "0") + "," + finalDuration + "," + finalAlert;
                           try (OutputStream os = conn.getOutputStream()) {
                               os.write(payload.getBytes());
                           }
@@ -491,6 +323,321 @@ jobs:
           }
           EOF
 
+          # 9. MainActivity.java (Complete Multi-Child Dashboard with Route, Stops, Geofence & App Lock)
+          cat << 'EOF' > app/src/main/java/com/childsafety/tracker/MainActivity.java
+          package com.childsafety.tracker;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.provider.Settings;
+          import android.view.View;
+          import android.webkit.WebView;
+          import android.widget.*;
+          import org.json.JSONObject;
+          import java.io.BufferedReader;
+          import java.io.InputStreamReader;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.util.ArrayList;
+
+          public class MainActivity extends Activity {
+              private SharedPreferences prefs;
+              private Handler refreshHandler = new Handler();
+              private String selectedChild = "1";
+              private double currentLat = 0, currentLng = 0;
+              private WebView mapWebView;
+              private TextView statusText, alertText;
+              private ArrayList<String> routePoints = new ArrayList<>();
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  prefs = getSharedPreferences("FamilyTrackerPrefs", Context.MODE_PRIVATE);
+
+                  String role = prefs.getString("user_role", "");
+                  if (role.equals("PARENT")) {
+                      showParentDashboard();
+                  } else if (role.equals("CHILD")) {
+                      showChildScreen();
+                  } else {
+                      showRoleSelectionScreen();
+                  }
+              }
+
+              private void showRoleSelectionScreen() {
+                  LinearLayout layout = new LinearLayout(this);
+                  layout.setOrientation(LinearLayout.VERTICAL);
+                  layout.setPadding(40, 80, 40, 40);
+
+                  TextView title = new TextView(this);
+                  title.setText("Family Safety 360 Pro\n(संपूर्ण पालक नियंत्रण सिस्टीम)");
+                  title.setTextSize(22f);
+                  title.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
+                  layout.addView(title);
+
+                  TextView lblCode = new TextView(this);
+                  lblCode.setText("\nFamily Secret Code (कोणताही पासवर्ड किंवा शब्द टाका):");
+                  layout.addView(lblCode);
+
+                  final EditText edtCode = new EditText(this);
+                  edtCode.setHint("उदा. katekar123 किंवा 54321");
+                  edtCode.setText(prefs.getString("family_code", ""));
+                  layout.addView(edtCode);
+
+                  Button btnParent = new Button(this);
+                  btnParent.setText("👨‍👩‍👧‍👦 मी पालक आहे (मुलांवर लक्ष ठेवा)");
+                  btnParent.setOnClickListener(v -> {
+                      String code = edtCode.getText().toString().trim();
+                      if (code.isEmpty()) { Toast.makeText(this, "कृपया Family Code टाका!", Toast.LENGTH_SHORT).show(); return; }
+                      prefs.edit().putString("family_code", code).putString("user_role", "PARENT").apply();
+                      showParentDashboard();
+                  });
+                  layout.addView(btnParent);
+
+                  Button btnChild = new Button(this);
+                  btnChild.setText("👦 हा मुलाचा फोन आहे (सुरक्षा सुरू करा)");
+                  btnChild.setOnClickListener(v -> {
+                      String code = edtCode.getText().toString().trim();
+                      if (code.isEmpty()) { Toast.makeText(this, "कृपया Family Code टाका!", Toast.LENGTH_SHORT).show(); return; }
+                      prefs.edit().putString("family_code", code).putString("user_role", "CHILD").apply();
+                      showChildScreen();
+                  });
+                  layout.addView(btnChild);
+
+                  setContentView(layout);
+              }
+
+              private void showChildScreen() {
+                  LinearLayout layout = new LinearLayout(this);
+                  layout.setOrientation(LinearLayout.VERTICAL);
+                  layout.setPadding(40, 80, 40, 40);
+
+                  TextView title = new TextView(this);
+                  title.setText("मुलाचा फोन सेटअप");
+                  title.setTextSize(20f);
+                  layout.addView(title);
+
+                  String[] kids = {"मुलगा १ (Child 1)", "मुलगा २ (Child 2)", "मुलगा ३ (Child 3)"};
+                  final Spinner spinner = new Spinner(this);
+                  ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, kids);
+                  spinner.setAdapter(adapter);
+                  spinner.setSelection(prefs.getInt("child_number", 1) - 1);
+                  layout.addView(spinner);
+
+                  Button btnStart = new Button(this);
+                  btnStart.setText("१. सुरक्षा व GPS ट्रॅकिंग सुरू करा");
+                  btnStart.setOnClickListener(v -> {
+                      int childNum = spinner.getSelectedItemPosition() + 1;
+                      prefs.edit().putInt("child_number", childNum).apply();
+
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                          requestPermissions(new String[]{
+                              Manifest.permission.ACCESS_FINE_LOCATION,
+                              Manifest.permission.ACCESS_COARSE_LOCATION
+                          }, 101);
+                      }
+                      Intent intent = new Intent(this, LocationService.class);
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                          startForegroundService(intent);
+                      } else {
+                          startService(intent);
+                      }
+                      Toast.makeText(this, "ट्रॅकिंग सुरू झाले!", Toast.LENGTH_SHORT).show();
+                  });
+                  layout.addView(btnStart);
+
+                  Button btnAppBlock = new Button(this);
+                  btnAppBlock.setText("२. ॲप ब्लॉकर परमिशन (Accessibility) द्या");
+                  btnAppBlock.setOnClickListener(v -> {
+                      Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                      startActivity(intent);
+                      Toast.makeText(this, "यादीतून 'Family Safety 360 Pro' निवडून ON करा", Toast.LENGTH_LONG).show();
+                  });
+                  layout.addView(btnAppBlock);
+
+                  Button btnReset = new Button(this);
+                  btnReset.setText("मोड बदला (Change Role)");
+                  btnReset.setOnClickListener(v -> {
+                      prefs.edit().clear().apply();
+                      showRoleSelectionScreen();
+                  });
+                  layout.addView(btnReset);
+
+                  setContentView(layout);
+              }
+
+              private void showParentDashboard() {
+                  ScrollView scroll = new ScrollView(this);
+                  LinearLayout layout = new LinearLayout(this);
+                  layout.setOrientation(LinearLayout.VERTICAL);
+                  layout.setPadding(20, 30, 20, 20);
+
+                  TextView title = new TextView(this);
+                  title.setText("पालक नियंत्रण डॅशबोर्ड (३ मुले)");
+                  title.setTextSize(18f);
+                  layout.addView(title);
+
+                  // ३ मुलांचे टॅब बटन्स
+                  LinearLayout btnLayout = new LinearLayout(this);
+                  btnLayout.setOrientation(LinearLayout.HORIZONTAL);
+                  for (int i = 1; i <= 3; i++) {
+                      final String id = String.valueOf(i);
+                      Button b = new Button(this);
+                      b.setText("मुलगा " + id);
+                      b.setOnClickListener(v -> {
+                          selectedChild = id;
+                          routePoints.clear();
+                          fetchChildData();
+                      });
+                      btnLayout.addView(b);
+                  }
+                  layout.addView(btnLayout);
+
+                  alertText = new TextView(this);
+                  alertText.setTextColor(0xFFFF0000); // Red alert text
+                  alertText.setTextSize(16f);
+                  layout.addView(alertText);
+
+                  statusText = new TextView(this);
+                  statusText.setText("\nमाहिती लोड होत आहे...");
+                  layout.addView(statusText);
+
+                  // ॲप ब्लॉकर रिमोट कंट्रोल
+                  final CheckBox chkBlock = new CheckBox(this);
+                  chkBlock.setText("गेम्स व सोशल मीडिया ॲप्स ब्लॉक करा (Remote Block)");
+                  chkBlock.setOnCheckedChangeListener((btn, isChecked) -> {
+                      prefs.edit().putBoolean("block_games", isChecked).apply();
+                      Toast.makeText(this, isChecked ? "ॲप्स ब्लॉक केले!" : "ॲप्स अनब्लॉक केले!", Toast.LENGTH_SHORT).show();
+                  });
+                  layout.addView(chkBlock);
+
+                  // सुरक्षित क्षेत्र (Safe Zone) सेट करणे
+                  Button btnSafeZone = new Button(this);
+                  btnSafeZone.setText("🏠 हे लोकेशन 'घर (Safe Zone)' म्हणून सेट करा");
+                  btnSafeZone.setOnClickListener(v -> {
+                      if (currentLat != 0 && currentLng != 0) {
+                          prefs.edit().putLong("safe_lat", Double.doubleToRawLongBits(currentLat))
+                                      .putLong("safe_lng", Double.doubleToRawLongBits(currentLng)).apply();
+                          Toast.makeText(this, "सुरक्षित क्षेत्र सेट झाले! (५०० मीटर)", Toast.LENGTH_SHORT).show();
+                      }
+                  });
+                  layout.addView(btnSafeZone);
+
+                  Button btnGmaps = new Button(this);
+                  btnGmaps.setText("📍 थेट Google Maps मध्ये उघडा");
+                  btnGmaps.setOnClickListener(v -> {
+                      if (currentLat != 0 && currentLng != 0) {
+                          Intent gmaps = new Intent(Intent.ACTION_VIEW, Uri.parse("geo:" + currentLat + "," + currentLng + "?q=" + currentLat + "," + currentLng + "(Child " + selectedChild + ")"));
+                          startActivity(gmaps);
+                      }
+                  });
+                  layout.addView(btnGmaps);
+
+                  mapWebView = new WebView(this);
+                  mapWebView.getSettings().setJavaScriptEnabled(true);
+                  mapWebView.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 850));
+                  layout.addView(mapWebView);
+
+                  Button btnReset = new Button(this);
+                  btnReset.setText("मोड बदला (Change Role)");
+                  btnReset.setOnClickListener(v -> {
+                      prefs.edit().clear().apply();
+                      showRoleSelectionScreen();
+                  });
+                  layout.addView(btnReset);
+
+                  scroll.addView(layout);
+                  setContentView(scroll);
+                  startAutoRefresh();
+              }
+
+              private void startAutoRefresh() {
+                  refreshHandler.postDelayed(new Runnable() {
+                      @Override
+                      public void run() {
+                          fetchChildData();
+                          refreshHandler.postDelayed(this, 10000);
+                      }
+                  }, 1000);
+              }
+
+              private void fetchChildData() {
+                  new Thread(() -> {
+                      try {
+                          String familyCode = prefs.getString("family_code", "family");
+                          String topic = "fam_" + familyCode + "_c" + selectedChild;
+                          URL url = new URL("https://ntfy.sh/" + topic + "/json?poll=1&since=latest");
+                          HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                          conn.setRequestMethod("GET");
+                          conn.setConnectTimeout(4000);
+
+                          if (conn.getResponseCode() == 200) {
+                              BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                              String line;
+                              String lastMsg = "";
+                              while ((line = reader.readLine()) != null) {
+                                  JSONObject obj = new JSONObject(line);
+                                  if (obj.has("message")) lastMsg = obj.getString("message");
+                              }
+                              reader.close();
+
+                              if (!lastMsg.isEmpty()) {
+                                  String[] parts = lastMsg.split(",");
+                                  currentLat = Double.parseDouble(parts[0]);
+                                  currentLng = Double.parseDouble(parts[1]);
+                                  boolean isStop = parts.length > 3 && parts[3].equals("1");
+                                  long duration = parts.length > 4 ? Long.parseLong(parts[4]) : 0;
+                                  String alert = parts.length > 5 ? parts[5] : "";
+
+                                  routePoints.add("[" + currentLat + "," + currentLng + "]");
+
+                                  runOnUiThread(() -> {
+                                      String info = "👦 मुलगा " + selectedChild + " चे लोकेशन:\nअक्षांश: " + currentLat + ", रेखांश: " + currentLng;
+                                      if (isStop) {
+                                          info += "\n🛑 थांबा: मुलगा या जागी " + duration + " मिनिटांपासून थांबला आहे!";
+                                      }
+                                      statusText.setText(info);
+                                      if (!alert.isEmpty()) {
+                                          alertText.setText("🚨 " + alert);
+                                      } else {
+                                          alertText.setText("");
+                                      }
+                                      loadMapWithRoute(currentLat, currentLng, isStop, duration);
+                                  });
+                              }
+                          }
+                      } catch (Exception e) {
+                          e.printStackTrace();
+                      }
+                  }).start();
+              }
+
+              private void loadMapWithRoute(double lat, double lng, boolean isStop, long duration) {
+                  StringBuilder polylineArr = new StringBuilder("[");
+                  for (int i = 0; i < routePoints.size(); i++) {
+                      polylineArr.append(routePoints.get(i));
+                      if (i < routePoints.size() - 1) polylineArr.append(",");
+                  }
+                  polylineArr.append("]");
+
+                  String stopMarkerScript = "";
+                  if (isStop) {
+                      stopMarkerScript = "L.circleMarker([" + lat + "," + lng + "], {color: 'red', radius: 12}).addTo(map).bindPopup('🛑 थांबा: " + duration + " मिनिटे').openPopup();";
+                  }
+
+                  String html = "<html><head><link rel='stylesheet' href='https://unpkg.com/leaflet/dist/leaflet.css'/><script src='https://unpkg.com/leaflet/dist/leaflet.js'></script></head><body style='margin:0;padding:0;'><div id='map' style='width:100%;height:100vh;'></div><script>var map=L.map('map').setView([" + lat + "," + lng + "],16);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);var path = " + polylineArr.toString() + "; if(path.length > 1) { L.polyline(path, {color: 'blue', weight: 5}).addTo(map); } L.marker([" + lat + "," + lng + "]).addTo(map).bindPopup('मुलगा " + selectedChild + " (सध्याचे स्थान)').openPopup();" + stopMarkerScript + "</script></body></html>";
+                  mapWebView.loadData(html, "text/html", "UTF-8");
+              }
+          }
+          EOF
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
@@ -503,5 +650,5 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FamilySafety360-AllInOne-APK
+          name: FamilySafety360-Complete-APK
           path: app/build/outputs/apk/debug/*.apk
