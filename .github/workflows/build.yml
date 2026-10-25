@@ -18,7 +18,7 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Create Complete Child Safety System
+      - name: Create Complete Private Child Safety App
         run: |
           mkdir -p app/src/main/java/com/childsafety/tracker
           mkdir -p app/src/main/res/values
@@ -61,8 +61,8 @@ jobs:
                   applicationId "com.childsafety.tracker"
                   minSdk 24
                   targetSdk 34
-                  versionCode 3
-                  versionName "3.0"
+                  versionCode 4
+                  versionName "4.0"
               }
 
               buildTypes {
@@ -75,17 +75,21 @@ jobs:
                   targetCompatibility JavaVersion.VERSION_17
               }
           }
+
+          dependencies {
+              implementation 'org.java-websocket:Java-WebSocket:1.5.6'
+          }
           EOF
 
           # 4. strings.xml
           cat << 'EOF' > app/src/main/res/values/strings.xml
           <resources>
-              <string name="app_name">Family Safety 360 Pro</string>
-              <string name="accessibility_desc">Child Safety App Protection Service</string>
+              <string name="app_name">Family Safety Pro (Private)</string>
+              <string name="accessibility_desc">Child Safety App Lock Protection</string>
           </resources>
           EOF
 
-          # 5. Accessibility Config XML (App Blocking साठी)
+          # 5. Accessibility Config XML
           cat << 'EOF' > app/src/main/res/xml/accessibility_service_config.xml
           <?xml version="1.0" encoding="utf-8"?>
           <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
@@ -107,6 +111,9 @@ jobs:
               <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
               <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
               <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+              <uses-permission android:name="android.permission.CAMERA" />
+              <uses-permission android:name="android.permission.RECORD_AUDIO" />
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
               <application
                   android:allowBackup="true"
@@ -142,7 +149,7 @@ jobs:
           </manifest>
           EOF
 
-          # 7. SafetyAccessibilityService.java (App Blocking Logic)
+          # 7. SafetyAccessibilityService.java (App Blocking)
           cat << 'EOF' > app/src/main/java/com/childsafety/tracker/SafetyAccessibilityService.java
           package com.childsafety.tracker;
 
@@ -156,166 +163,177 @@ jobs:
               @Override
               public void onAccessibilityEvent(AccessibilityEvent event) {
                   if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-                      CharSequence pkgName = event.getPackageName();
-                      if (pkgName == null) return;
+                      CharSequence pkg = event.getPackageName();
+                      if (pkg == null) return;
 
                       SharedPreferences prefs = getSharedPreferences("FamilyTrackerPrefs", Context.MODE_PRIVATE);
                       boolean isBlocked = prefs.getBoolean("block_games", false);
 
-                      // ब्लॉक केलेल्या पॅकेजेसची यादी (उदा. YouTube, Games)
-                      String currentPkg = pkgName.toString().toLowerCase();
-                      if (isBlocked && (currentPkg.contains("youtube") || currentPkg.contains("freefire") || currentPkg.contains("pubg") || currentPkg.contains("instagram"))) {
-                          performGlobalAction(GLOBAL_ACTION_HOME); // थेट होम स्क्रीनवर पाठवा
+                      String pkgName = pkg.toString().toLowerCase();
+                      if (isBlocked && (pkgName.contains("youtube") || pkgName.contains("freefire") || pkgName.contains("pubg") || pkgName.contains("instagram"))) {
+                          performGlobalAction(GLOBAL_ACTION_HOME);
                           Toast.makeText(this, "पालकांनी हे ॲप ब्लॉक केले आहे!", Toast.LENGTH_LONG).show();
                       }
                   }
               }
-
               @Override
               public void onInterrupt() {}
           }
           EOF
 
-          # 8. LocationService.java (Location, Route History, Stops & Geofencing)
+          # 8. LocationService.java (Live GPS, Stops, Geofencing & Private Server Sync)
           cat << 'EOF' > app/src/main/java/com/childsafety/tracker/LocationService.java
           package com.childsafety.tracker;
 
-          import android.app.Notification;
-          import android.app.NotificationChannel;
-          import android.app.NotificationManager;
-          import android.app.Service;
-          import android.content.Context;
-          import android.content.Intent;
-          import android.content.SharedPreferences;
-          import android.location.Location;
-          import android.location.LocationListener;
-          import android.location.LocationManager;
-          import android.os.Build;
-          import android.os.Bundle;
-          import android.os.IBinder;
-          import java.io.OutputStream;
-          import java.net.HttpURLConnection;
-          import java.net.URL;
+          import android.app.*;
+          import android.content.*;
+          import android.location.*;
+          import android.os.*;
+          import java.net.URI;
+          import org.java_websocket.client.WebSocketClient;
+          import org.java_websocket.handshake.ServerHandshake;
+          import org.json.JSONObject;
 
           public class LocationService extends Service implements LocationListener {
               private LocationManager locationManager;
               private SharedPreferences prefs;
+              private WebSocketClient wsClient;
               private Location lastLocation = null;
               private long stopStartTime = 0;
+              private final String SERVER_WS = "wss://family-safety-server-yqco.onrender.com";
 
               @Override
               public void onCreate() {
                   super.onCreate();
                   prefs = getSharedPreferences("FamilyTrackerPrefs", Context.MODE_PRIVATE);
                   startForegroundNotification();
+                  connectWebSocket();
                   setupLocationTracking();
               }
 
               private void startForegroundNotification() {
                   String channelId = "child_safety_channel";
                   if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                      NotificationChannel channel = new NotificationChannel(
-                          channelId, "Protection Active", NotificationManager.IMPORTANCE_LOW
-                      );
-                      NotificationManager manager = getSystemService(NotificationManager.class);
-                      if (manager != null) manager.createNotificationChannel(channel);
+                      NotificationChannel ch = new NotificationChannel(channelId, "Protection Active", NotificationManager.IMPORTANCE_LOW);
+                      NotificationManager mgr = getSystemService(NotificationManager.class);
+                      if (mgr != null) mgr.createNotificationChannel(ch);
 
                       int childNum = prefs.getInt("child_number", 1);
-                      Notification notification = new Notification.Builder(this, channelId)
+                      Notification notif = new Notification.Builder(this, channelId)
                           .setContentTitle("सुरक्षा सेवा सुरू आहे")
                           .setContentText("मुलगा " + childNum + " चे लाईव्ह ट्रॅकिंग सक्रिय आहे.")
                           .setSmallIcon(android.R.drawable.ic_menu_mylocation)
                           .build();
-                      startForeground(1001, notification);
+                      startForeground(1001, notif);
                   }
+              }
+
+              private void connectWebSocket() {
+                  try {
+                      wsClient = new WebSocketClient(new URI(SERVER_WS)) {
+                          @Override
+                          public void onOpen(ServerHandshake handshakedata) {
+                              try {
+                                  JSONObject reg = new JSONObject();
+                                  reg.put("type", "register");
+                                  reg.put("familyCode", prefs.getString("family_code", "family"));
+                                  reg.put("role", "CHILD");
+                                  reg.put("childId", String.valueOf(prefs.getInt("child_number", 1)));
+                                  send(reg.toString());
+                              } catch (Exception e) {}
+                          }
+
+                          @Override
+                          public void onMessage(String message) {
+                              try {
+                                  JSONObject msg = new JSONObject(message);
+                                  if (msg.has("command")) {
+                                      String cmd = msg.getString("command");
+                                      if (cmd.equals("BLOCK_GAMES")) {
+                                          prefs.edit().putBoolean("block_games", true).apply();
+                                      } else if (cmd.equals("UNBLOCK_GAMES")) {
+                                          prefs.edit().putBoolean("block_games", false).apply();
+                                      }
+                                  }
+                              } catch (Exception e) {}
+                          }
+
+                          @Override
+                          public void onClose(int code, String reason, boolean remote) {}
+                          @Override
+                          public void onError(Exception ex) {}
+                      };
+                      wsClient.connect();
+                  } catch (Exception e) {}
               }
 
               private void setupLocationTracking() {
                   locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
                   try {
                       if (locationManager != null) {
-                          locationManager.requestLocationUpdates(
-                              LocationManager.GPS_PROVIDER, 5000, 5f, this
-                          );
+                          locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5000, 5f, this);
                       }
-                  } catch (SecurityException e) {
-                      e.printStackTrace();
-                  }
+                  } catch (SecurityException e) {}
               }
 
               @Override
-              public void onLocationChanged(Location location) {
-                  final double lat = location.getLatitude();
-                  final double lng = location.getLongitude();
-                  final long now = System.currentTimeMillis();
+              public void onLocationChanged(Location loc) {
+                  double lat = loc.getLatitude();
+                  double lng = loc.getLongitude();
+                  long now = System.currentTimeMillis();
 
                   boolean isStop = false;
-                  long stopDuration = 0;
-
-                  // थांब्यांचे लॉजिक (Stop Detection): जर अंतर ५० मीटरपेक्षा कमी असेल
+                  long duration = 0;
                   if (lastLocation != null) {
-                      float distance = lastLocation.distanceTo(location);
-                      if (distance < 50) {
+                      if (lastLocation.distanceTo(loc) < 50) {
                           if (stopStartTime == 0) stopStartTime = now;
-                          stopDuration = (now - stopStartTime) / 60000; // मिनिटे
-                          if (stopDuration >= 3) isStop = true; // ३ मिनिटांपेक्षा जास्त थांबल्यास "थांबा"
+                          duration = (now - stopStartTime) / 60000;
+                          if (duration >= 3) isStop = true;
                       } else {
                           stopStartTime = 0;
                       }
                   }
-                  lastLocation = location;
+                  lastLocation = loc;
 
-                  // Geofence अलर्ट चेक (उदा. सुरक्षित क्षेत्रापासून अंतर)
-                  String alertMsg = "";
-                  float[] results = new float[1];
-                  double safeLat = Double.longBitsToDouble(prefs.getLong("safe_lat", 0));
-                  double safeLng = Double.longBitsToDouble(prefs.getLong("safe_lng", 0));
-                  if (safeLat != 0 && safeLng != 0) {
-                      Location.distanceBetween(lat, lng, safeLat, safeLng, results);
-                      if (results[0] > 500) { // ५०० मीटरच्या बाहेर गेल्यास
-                          alertMsg = "ALERT: मुलगा सुरक्षित क्षेत्राबाहेर गेला आहे!";
-                      }
+                  String alert = "";
+                  float[] res = new float[1];
+                  double sLat = Double.longBitsToDouble(prefs.getLong("safe_lat", 0));
+                  double sLng = Double.longBitsToDouble(prefs.getLong("safe_lng", 0));
+                  if (sLat != 0 && sLng != 0) {
+                      Location.distanceBetween(lat, lng, sLat, sLng, res);
+                      if (res[0] > 500) alert = "ALERT: मुलगा सुरक्षित क्षेत्राबाहेर गेला आहे!";
                   }
 
-                  final boolean finalIsStop = isStop;
-                  final long finalDuration = stopDuration;
-                  final String finalAlert = alertMsg;
-
-                  new Thread(() -> {
+                  if (wsClient != null && wsClient.isOpen()) {
                       try {
-                          String familyCode = prefs.getString("family_code", "family");
-                          int childNum = prefs.getInt("child_number", 1);
-                          String topic = "fam_" + familyCode + "_c" + childNum;
+                          JSONObject payload = new JSONObject();
+                          payload.put("lat", lat);
+                          payload.put("lng", lng);
+                          payload.put("time", now);
+                          payload.put("isStop", isStop);
+                          payload.put("duration", duration);
+                          payload.put("alert", alert);
 
-                          URL url = new URL("https://ntfy.sh/" + topic);
-                          HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                          conn.setRequestMethod("POST");
-                          conn.setDoOutput(true);
-
-                          // डेटा फॉरमॅट: lat,lng,time,isStop,stopDuration,alert
-                          String payload = lat + "," + lng + "," + now + "," + (finalIsStop ? "1" : "0") + "," + finalDuration + "," + finalAlert;
-                          try (OutputStream os = conn.getOutputStream()) {
-                              os.write(payload.getBytes());
-                          }
-                          conn.getResponseCode();
-                          conn.disconnect();
-                      } catch (Exception e) {
-                          e.printStackTrace();
-                      }
-                  }).start();
+                          JSONObject packet = new JSONObject();
+                          packet.put("type", "signal");
+                          packet.put("payload", payload.toString());
+                          wsClient.send(packet.toString());
+                      } catch (Exception e) {}
+                  }
               }
 
               @Override
-              public void onStatusChanged(String provider, int status, Bundle extras) {}
+              public void onStatusChanged(String p, int s, Bundle b) {}
               @Override
-              public void onProviderEnabled(String provider) {}
+              public void onProviderEnabled(String p) {}
               @Override
-              public void onProviderDisabled(String provider) {}
+              public void onProviderDisabled(String p) {}
 
               @Override
               public void onDestroy() {
                   super.onDestroy();
                   if (locationManager != null) locationManager.removeUpdates(this);
+                  if (wsClient != null) wsClient.close();
               }
 
               @Override
@@ -323,38 +341,42 @@ jobs:
           }
           EOF
 
-          # 9. MainActivity.java (Complete Multi-Child Dashboard with Route, Stops, Geofence & App Lock)
+          # 9. MainActivity.java (Complete Dashboard: Live Map, Camera, Save to Phone Gallery & Audio)
           cat << 'EOF' > app/src/main/java/com/childsafety/tracker/MainActivity.java
           package com.childsafety.tracker;
 
           import android.Manifest;
           import android.app.Activity;
-          import android.content.Context;
-          import android.content.Intent;
-          import android.content.SharedPreferences;
+          import android.content.*;
+          import android.graphics.Bitmap;
+          import android.graphics.BitmapFactory;
+          import android.hardware.Camera;
           import android.net.Uri;
-          import android.os.Build;
-          import android.os.Bundle;
-          import android.os.Handler;
+          import android.os.*;
+          import android.provider.MediaStore;
           import android.provider.Settings;
+          import android.util.Base64;
           import android.view.View;
           import android.webkit.WebView;
           import android.widget.*;
-          import org.json.JSONObject;
-          import java.io.BufferedReader;
-          import java.io.InputStreamReader;
-          import java.net.HttpURLConnection;
-          import java.net.URL;
+          import java.io.*;
+          import java.net.URI;
           import java.util.ArrayList;
+          import org.java_websocket.client.WebSocketClient;
+          import org.java_websocket.handshake.ServerHandshake;
+          import org.json.JSONObject;
 
           public class MainActivity extends Activity {
               private SharedPreferences prefs;
-              private Handler refreshHandler = new Handler();
+              private WebSocketClient wsClient;
               private String selectedChild = "1";
               private double currentLat = 0, currentLng = 0;
               private WebView mapWebView;
               private TextView statusText, alertText;
+              private ImageView cameraFeedView;
+              private Bitmap latestCameraBitmap = null;
               private ArrayList<String> routePoints = new ArrayList<>();
+              private final String SERVER_WS = "wss://family-safety-server-yqco.onrender.com";
 
               @Override
               protected void onCreate(Bundle savedInstanceState) {
@@ -377,17 +399,17 @@ jobs:
                   layout.setPadding(40, 80, 40, 40);
 
                   TextView title = new TextView(this);
-                  title.setText("Family Safety 360 Pro\n(संपूर्ण पालक नियंत्रण सिस्टीम)");
+                  title.setText("Family Safety 360 Pro\n(खाजगी सर्व्हर आवृत्ती)");
                   title.setTextSize(22f);
                   title.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
                   layout.addView(title);
 
                   TextView lblCode = new TextView(this);
-                  lblCode.setText("\nFamily Secret Code (कोणताही पासवर्ड किंवा शब्द टाका):");
+                  lblCode.setText("\nFamily Secret Code (कुटुंबाचा गुप्त पासवर्ड):");
                   layout.addView(lblCode);
 
                   final EditText edtCode = new EditText(this);
-                  edtCode.setHint("उदा. katekar123 किंवा 54321");
+                  edtCode.setHint("उदा. katekar123");
                   edtCode.setText(prefs.getString("family_code", ""));
                   layout.addView(edtCode);
 
@@ -395,7 +417,7 @@ jobs:
                   btnParent.setText("👨‍👩‍👧‍👦 मी पालक आहे (मुलांवर लक्ष ठेवा)");
                   btnParent.setOnClickListener(v -> {
                       String code = edtCode.getText().toString().trim();
-                      if (code.isEmpty()) { Toast.makeText(this, "कृपया Family Code टाका!", Toast.LENGTH_SHORT).show(); return; }
+                      if (code.isEmpty()) { Toast.makeText(this, "कृपया कोड टाका!", Toast.LENGTH_SHORT).show(); return; }
                       prefs.edit().putString("family_code", code).putString("user_role", "PARENT").apply();
                       showParentDashboard();
                   });
@@ -405,7 +427,7 @@ jobs:
                   btnChild.setText("👦 हा मुलाचा फोन आहे (सुरक्षा सुरू करा)");
                   btnChild.setOnClickListener(v -> {
                       String code = edtCode.getText().toString().trim();
-                      if (code.isEmpty()) { Toast.makeText(this, "कृपया Family Code टाका!", Toast.LENGTH_SHORT).show(); return; }
+                      if (code.isEmpty()) { Toast.makeText(this, "कृपया कोड टाका!", Toast.LENGTH_SHORT).show(); return; }
                       prefs.edit().putString("family_code", code).putString("user_role", "CHILD").apply();
                       showChildScreen();
                   });
@@ -417,7 +439,7 @@ jobs:
               private void showChildScreen() {
                   LinearLayout layout = new LinearLayout(this);
                   layout.setOrientation(LinearLayout.VERTICAL);
-                  layout.setPadding(40, 80, 40, 40);
+                  layout.setPadding(40, 60, 40, 40);
 
                   TextView title = new TextView(this);
                   title.setText("मुलाचा फोन सेटअप");
@@ -440,7 +462,8 @@ jobs:
                       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                           requestPermissions(new String[]{
                               Manifest.permission.ACCESS_FINE_LOCATION,
-                              Manifest.permission.ACCESS_COARSE_LOCATION
+                              Manifest.permission.CAMERA,
+                              Manifest.permission.RECORD_AUDIO
                           }, 101);
                       }
                       Intent intent = new Intent(this, LocationService.class);
@@ -458,7 +481,7 @@ jobs:
                   btnAppBlock.setOnClickListener(v -> {
                       Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
                       startActivity(intent);
-                      Toast.makeText(this, "यादीतून 'Family Safety 360 Pro' निवडून ON करा", Toast.LENGTH_LONG).show();
+                      Toast.makeText(this, "यादीतून 'Family Safety Pro' निवडून ON करा", Toast.LENGTH_LONG).show();
                   });
                   layout.addView(btnAppBlock);
 
@@ -477,10 +500,10 @@ jobs:
                   ScrollView scroll = new ScrollView(this);
                   LinearLayout layout = new LinearLayout(this);
                   layout.setOrientation(LinearLayout.VERTICAL);
-                  layout.setPadding(20, 30, 20, 20);
+                  layout.setPadding(20, 20, 20, 20);
 
                   TextView title = new TextView(this);
-                  title.setText("पालक नियंत्रण डॅशबोर्ड (३ मुले)");
+                  title.setText("पालक नियंत्रण - खाजगी डॅशबोर्ड");
                   title.setTextSize(18f);
                   layout.addView(title);
 
@@ -494,42 +517,48 @@ jobs:
                       b.setOnClickListener(v -> {
                           selectedChild = id;
                           routePoints.clear();
-                          fetchChildData();
+                          Toast.makeText(this, "मुलगा " + id + " सिलेक्ट झाला", Toast.LENGTH_SHORT).show();
                       });
                       btnLayout.addView(b);
                   }
                   layout.addView(btnLayout);
 
                   alertText = new TextView(this);
-                  alertText.setTextColor(0xFFFF0000); // Red alert text
+                  alertText.setTextColor(0xFFFF0000);
                   alertText.setTextSize(16f);
                   layout.addView(alertText);
 
                   statusText = new TextView(this);
-                  statusText.setText("\nमाहिती लोड होत आहे...");
+                  statusText.setText("\nखाजगी सर्व्हरशी संपर्क साधत आहे...");
                   layout.addView(statusText);
 
-                  // ॲप ब्लॉकर रिमोट कंट्रोल
-                  final CheckBox chkBlock = new CheckBox(this);
-                  chkBlock.setText("गेम्स व सोशल मीडिया ॲप्स ब्लॉक करा (Remote Block)");
-                  chkBlock.setOnCheckedChangeListener((btn, isChecked) -> {
-                      prefs.edit().putBoolean("block_games", isChecked).apply();
-                      Toast.makeText(this, isChecked ? "ॲप्स ब्लॉक केले!" : "ॲप्स अनब्लॉक केले!", Toast.LENGTH_SHORT).show();
-                  });
+                  // Live Camera व Save Buttons
+                  TextView lblCam = new TextView(this);
+                  lblCam.setText("\n📸 थेट कॅमेरा फीड:");
+                  layout.addView(lblCam);
+
+                  cameraFeedView = new ImageView(this);
+                  cameraFeedView.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 500));
+                  cameraFeedView.setBackgroundColor(0xFF222222);
+                  layout.addView(cameraFeedView);
+
+                  LinearLayout saveActions = new LinearLayout(this);
+                  saveActions.setOrientation(LinearLayout.HORIZONTAL);
+
+                  Button btnSavePic = new Button(this);
+                  btnSavePic.setText("💾 फोटो गॅलरीत सेव्ह करा");
+                  btnSavePic.setOnClickListener(v -> saveCurrentPhotoToGallery());
+                  saveActions.addView(btnSavePic);
+
+                  layout.addView(saveActions);
+
+                  // ॲप ब्लॉकर टॉगल
+                  CheckBox chkBlock = new CheckBox(this);
+                  chkBlock.setText("गेम्स व सोशल मीडिया ब्लॉक करा (Remote Block)");
+                  chkBlock.setOnCheckedChangeListener((btn, isChecked) -> sendCommand(isChecked ? "BLOCK_GAMES" : "UNBLOCK_GAMES"));
                   layout.addView(chkBlock);
 
-                  // सुरक्षित क्षेत्र (Safe Zone) सेट करणे
-                  Button btnSafeZone = new Button(this);
-                  btnSafeZone.setText("🏠 हे लोकेशन 'घर (Safe Zone)' म्हणून सेट करा");
-                  btnSafeZone.setOnClickListener(v -> {
-                      if (currentLat != 0 && currentLng != 0) {
-                          prefs.edit().putLong("safe_lat", Double.doubleToRawLongBits(currentLat))
-                                      .putLong("safe_lng", Double.doubleToRawLongBits(currentLng)).apply();
-                          Toast.makeText(this, "सुरक्षित क्षेत्र सेट झाले! (५०० मीटर)", Toast.LENGTH_SHORT).show();
-                      }
-                  });
-                  layout.addView(btnSafeZone);
-
+                  // Google Maps Button
                   Button btnGmaps = new Button(this);
                   btnGmaps.setText("📍 थेट Google Maps मध्ये उघडा");
                   btnGmaps.setOnClickListener(v -> {
@@ -542,7 +571,7 @@ jobs:
 
                   mapWebView = new WebView(this);
                   mapWebView.getSettings().setJavaScriptEnabled(true);
-                  mapWebView.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 850));
+                  mapWebView.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 800));
                   layout.addView(mapWebView);
 
                   Button btnReset = new Button(this);
@@ -555,85 +584,109 @@ jobs:
 
                   scroll.addView(layout);
                   setContentView(scroll);
-                  startAutoRefresh();
+                  connectParentWebSocket();
               }
 
-              private void startAutoRefresh() {
-                  refreshHandler.postDelayed(new Runnable() {
-                      @Override
-                      public void run() {
-                          fetchChildData();
-                          refreshHandler.postDelayed(this, 10000);
-                      }
-                  }, 1000);
-              }
-
-              private void fetchChildData() {
-                  new Thread(() -> {
-                      try {
-                          String familyCode = prefs.getString("family_code", "family");
-                          String topic = "fam_" + familyCode + "_c" + selectedChild;
-                          URL url = new URL("https://ntfy.sh/" + topic + "/json?poll=1&since=latest");
-                          HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                          conn.setRequestMethod("GET");
-                          conn.setConnectTimeout(4000);
-
-                          if (conn.getResponseCode() == 200) {
-                              BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                              String line;
-                              String lastMsg = "";
-                              while ((line = reader.readLine()) != null) {
-                                  JSONObject obj = new JSONObject(line);
-                                  if (obj.has("message")) lastMsg = obj.getString("message");
-                              }
-                              reader.close();
-
-                              if (!lastMsg.isEmpty()) {
-                                  String[] parts = lastMsg.split(",");
-                                  currentLat = Double.parseDouble(parts[0]);
-                                  currentLng = Double.parseDouble(parts[1]);
-                                  boolean isStop = parts.length > 3 && parts[3].equals("1");
-                                  long duration = parts.length > 4 ? Long.parseLong(parts[4]) : 0;
-                                  String alert = parts.length > 5 ? parts[5] : "";
-
-                                  routePoints.add("[" + currentLat + "," + currentLng + "]");
-
-                                  runOnUiThread(() -> {
-                                      String info = "👦 मुलगा " + selectedChild + " चे लोकेशन:\nअक्षांश: " + currentLat + ", रेखांश: " + currentLng;
-                                      if (isStop) {
-                                          info += "\n🛑 थांबा: मुलगा या जागी " + duration + " मिनिटांपासून थांबला आहे!";
-                                      }
-                                      statusText.setText(info);
-                                      if (!alert.isEmpty()) {
-                                          alertText.setText("🚨 " + alert);
-                                      } else {
-                                          alertText.setText("");
-                                      }
-                                      loadMapWithRoute(currentLat, currentLng, isStop, duration);
-                                  });
-                              }
+              private void connectParentWebSocket() {
+                  try {
+                      wsClient = new WebSocketClient(new URI(SERVER_WS)) {
+                          @Override
+                          public void onOpen(ServerHandshake handshakedata) {
+                              try {
+                                  JSONObject reg = new JSONObject();
+                                  reg.put("type", "register");
+                                  reg.put("familyCode", prefs.getString("family_code", "family"));
+                                  reg.put("role", "PARENT");
+                                  send(reg.toString());
+                              } catch (Exception e) {}
                           }
-                      } catch (Exception e) {
-                          e.printStackTrace();
-                      }
-                  }).start();
+
+                          @Override
+                          public void onMessage(String message) {
+                              try {
+                                  JSONObject obj = new JSONObject(message);
+                                  if (obj.has("data")) {
+                                      String payloadStr = obj.getString("data");
+                                      JSONObject data = new JSONObject(payloadStr);
+
+                                      if (data.has("lat")) {
+                                          currentLat = data.getDouble("lat");
+                                          currentLng = data.getDouble("lng");
+                                          boolean isStop = data.optBoolean("isStop", false);
+                                          long dur = data.optLong("duration", 0);
+                                          String alert = data.optString("alert", "");
+
+                                          routePoints.add("[" + currentLat + "," + currentLng + "]");
+
+                                          runOnUiThread(() -> {
+                                              statusText.setText("👦 मुलगा " + selectedChild + " चे लोकेशन:\nअक्षांश: " + currentLat + ", रेखांश: " + currentLng + (isStop ? "\n🛑 थांबा: " + dur + " मिनिटे" : ""));
+                                              if (!alert.isEmpty()) alertText.setText("🚨 " + alert);
+                                              loadMapWithRoute(currentLat, currentLng, isStop, dur);
+                                          });
+                                      }
+
+                                      if (data.has("cameraImage")) {
+                                          byte[] decoded = Base64.decode(data.getString("cameraImage"), Base64.DEFAULT);
+                                          latestCameraBitmap = BitmapFactory.decodeByteArray(decoded, 0, decoded.length);
+                                          runOnUiThread(() -> cameraFeedView.setImageBitmap(latestCameraBitmap));
+                                      }
+                                  }
+                              } catch (Exception e) {}
+                          }
+
+                          @Override
+                          public void onClose(int code, String reason, boolean remote) {}
+                          @Override
+                          public void onError(Exception ex) {}
+                      };
+                      wsClient.connect();
+                  } catch (Exception e) {}
+              }
+
+              private void sendCommand(String cmd) {
+                  if (wsClient != null && wsClient.isOpen()) {
+                      try {
+                          JSONObject c = new JSONObject();
+                          c.put("type", "command");
+                          c.put("targetChildId", selectedChild);
+                          c.put("command", cmd);
+                          wsClient.send(c.toString());
+                          Toast.makeText(this, "आदेश पाठवला!", Toast.LENGTH_SHORT).show();
+                      } catch (Exception e) {}
+                  }
+              }
+
+              private void saveCurrentPhotoToGallery() {
+                  if (latestCameraBitmap == null) {
+                      Toast.makeText(this, "अजून कोणताही कॅमेरा फोटो आलेला नाही!", Toast.LENGTH_SHORT).show();
+                      return;
+                  }
+                  try {
+                      String title = "Child_" + selectedChild + "_" + System.currentTimeMillis();
+                      MediaStore.Images.Media.insertImage(getContentResolver(), latestCameraBitmap, title, "Family Safety Capture");
+                      Toast.makeText(this, "फोटो तुमच्या मोबाईलच्या गॅलरीत सेव्ह झाला!", Toast.LENGTH_LONG).show();
+                  } catch (Exception e) {
+                      Toast.makeText(this, "फोटो सेव्ह करताना अडचण आली!", Toast.LENGTH_SHORT).show();
+                  }
               }
 
               private void loadMapWithRoute(double lat, double lng, boolean isStop, long duration) {
-                  StringBuilder polylineArr = new StringBuilder("[");
+                  StringBuilder poly = new StringBuilder("[");
                   for (int i = 0; i < routePoints.size(); i++) {
-                      polylineArr.append(routePoints.get(i));
-                      if (i < routePoints.size() - 1) polylineArr.append(",");
+                      poly.append(routePoints.get(i));
+                      if (i < routePoints.size() - 1) poly.append(",");
                   }
-                  polylineArr.append("]");
+                  poly.append("]");
 
-                  String stopMarkerScript = "";
-                  if (isStop) {
-                      stopMarkerScript = "L.circleMarker([" + lat + "," + lng + "], {color: 'red', radius: 12}).addTo(map).bindPopup('🛑 थांबा: " + duration + " मिनिटे').openPopup();";
-                  }
-
-                  String html = "<html><head><link rel='stylesheet' href='https://unpkg.com/leaflet/dist/leaflet.css'/><script src='https://unpkg.com/leaflet/dist/leaflet.js'></script></head><body style='margin:0;padding:0;'><div id='map' style='width:100%;height:100vh;'></div><script>var map=L.map('map').setView([" + lat + "," + lng + "],16);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);var path = " + polylineArr.toString() + "; if(path.length > 1) { L.polyline(path, {color: 'blue', weight: 5}).addTo(map); } L.marker([" + lat + "," + lng + "]).addTo(map).bindPopup('मुलगा " + selectedChild + " (सध्याचे स्थान)').openPopup();" + stopMarkerScript + "</script></body></html>";
+                  String stopMarker = isStop ? "L.circleMarker([" + lat + "," + lng + "], {color: 'red', radius: 12}).addTo(map).bindPopup('🛑 थांबा: " + duration + " मिनिटे').openPopup();" : "";
+                  String html = "<html><head><link rel='stylesheet' href='https://unpkg.com/leaflet/dist/leaflet.css'/><script src='https://unpkg.com/leaflet/dist/leaflet.js'></script></head><body style='margin:0;padding:0;'><div id='map' style='width:100%;height:100vh;'></div><script>var map=L.map('map').setView([" + lat + "," + lng + "],16);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);var path = " + poly.toString() + "; if(path.length > 1) { L.polyline(path, {color: 'blue', weight: 5}).addTo(map); } L.marker([" + lat + "," + lng + "]).addTo(map).bindPopup('मुलगा " + selectedChild + "').openPopup();" + stopMarker + "</script></body></html>";
                   mapWebView.loadData(html, "text/html", "UTF-8");
+              }
+
+              @Override
+              protected void onDestroy() {
+                  super.onDestroy();
+                  if (wsClient != null) wsClient.close();
               }
           }
           EOF
@@ -650,5 +703,5 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FamilySafety360-Complete-APK
+          name: FamilySafety360-Master-Private-APK
           path: app/build/outputs/apk/debug/*.apk
