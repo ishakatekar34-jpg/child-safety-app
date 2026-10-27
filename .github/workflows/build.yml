@@ -23,6 +23,548 @@ jobs:
           mkdir -p app/src/main/java/com/childsafety/tracker
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/xml
+          mkdir -p app/src/main/res/mipmap-nodpi
+
+          # Custom launcher icon supplied by the user
+          cat << 'ICONBASE64' | base64 -d > app/src/main/res/mipmap-nodpi/ic_launcher.png
+          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
+          SUVORK5CYII=
+          ICONBASE64
 
           # 1. settings.gradle
           cat << 'EOF' > settings.gradle
@@ -109,15 +651,18 @@ jobs:
               <uses-permission android:name="android.permission.INTERNET" />
               <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
               <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+              <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
               <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
               <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
               <uses-permission android:name="android.permission.CAMERA" />
-              <uses-permission android:name="android.permission.RECORD_AUDIO" />
-              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+              <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
 
               <application
                   android:allowBackup="true"
                   android:label="@string/app_name"
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher"
                   android:usesCleartextTraffic="true">
 
                   <activity
@@ -131,7 +676,7 @@ jobs:
 
                   <service
                       android:name=".LocationService"
-                      android:foregroundServiceType="location"
+                      android:foregroundServiceType="location|camera"
                       android:exported="false" />
 
                   <service
@@ -186,8 +731,20 @@ jobs:
           package com.childsafety.tracker;
 
           import android.app.*;
+          import android.Manifest;
           import android.content.*;
+          import android.content.pm.PackageManager;
           import android.location.*;
+          import android.hardware.Camera;
+          import android.graphics.SurfaceTexture;
+          import android.graphics.YuvImage;
+          import android.graphics.Rect;
+          import android.graphics.ImageFormat;
+          import android.util.Base64;
+          import android.content.pm.ServiceInfo;
+          import android.app.usage.UsageStats;
+          import android.app.usage.UsageStatsManager;
+          import android.app.AppOpsManager;
           import android.os.*;
           import java.net.URI;
           import org.java_websocket.client.WebSocketClient;
@@ -200,6 +757,10 @@ jobs:
               private WebSocketClient wsClient;
               private Location lastLocation = null;
               private long stopStartTime = 0;
+              private long lastUsageReport = 0;
+              private Camera captureCamera;
+              private SurfaceTexture captureTexture;
+              private volatile boolean captureInProgress = false;
               private final String SERVER_WS = "wss://family-safety-server-yqco.onrender.com";
 
               @Override
@@ -224,7 +785,13 @@ jobs:
                           .setContentText("मुलगा " + childNum + " चे लाईव्ह ट्रॅकिंग सक्रिय आहे.")
                           .setSmallIcon(android.R.drawable.ic_menu_mylocation)
                           .build();
-                      startForeground(1001, notif);
+                      int serviceTypes = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION;
+                      if (Build.VERSION.SDK_INT >= 34 && prefs.getBoolean("camera_session_enabled", false)
+                          && prefs.getBoolean("camera_permission_granted", false)) {
+                          serviceTypes |= ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA;
+                      }
+                      if (Build.VERSION.SDK_INT >= 29) startForeground(1001, notif, serviceTypes);
+                      else startForeground(1001, notif);
                   }
               }
 
@@ -251,20 +818,123 @@ jobs:
                                       String cmd = msg.getString("command");
                                       if (cmd.equals("BLOCK_GAMES")) {
                                           prefs.edit().putBoolean("block_games", true).apply();
+                                          sendChildStatus("Remote App Blocking आदेश मिळाला; Accessibility service सक्रिय असल्यास निवडलेल्या ॲप्सवर लागू होईल.");
                                       } else if (cmd.equals("UNBLOCK_GAMES")) {
                                           prefs.edit().putBoolean("block_games", false).apply();
+                                          sendChildStatus("Remote App Blocking बंद केला.");
+                                      } else if (cmd.equals("CAMERA_CAPTURE")) {
+                                          if (prefs.getBoolean("camera_session_enabled", false) && prefs.getBoolean("camera_permission_granted", false)) captureAndSendPhoto();
+                                          else sendChildStatus("कॅमेरा सत्र मुलाच्या फोनवर सुरू केलेले नाही किंवा Camera permission उपलब्ध नाही.");
+                                      } else if (cmd.equals("CAMERA_START")) {
+                                          if (prefs.getBoolean("camera_session_enabled", false) && prefs.getBoolean("camera_permission_granted", false)) startCameraStream();
+                                          else sendChildStatus("मुलाच्या फोनवर Camera session सुरू करून संमती द्या.");
+                                      } else if (cmd.equals("CAMERA_STOP")) {
+                                          releaseCaptureCamera();
+                                          sendChildStatus("Camera stream बंद केला.");
+                                      } else if (cmd.equals("SET_GEOFENCE")) {
+                                          double la = msg.optDouble("latitude", 0);
+                                          double lo = msg.optDouble("longitude", 0);
+                                          int radius = msg.optInt("radius", 500);
+                                          if (la >= -90 && la <= 90 && lo >= -180 && lo <= 180 && radius >= 50 && radius <= 50000) {
+                                              prefs.edit().putLong("safe_lat", Double.doubleToLongBits(la)).putLong("safe_lng", Double.doubleToLongBits(lo)).putInt("safe_radius", radius).apply();
+                                              sendChildStatus("Geofence सेटिंग्ज सेव्ह झाल्या.");
+                                          }
                                       }
                                   }
                               } catch (Exception e) {}
                           }
 
                           @Override
-                          public void onClose(int code, String reason, boolean remote) {}
+                          public void onClose(int code, String reason, boolean remote) {
+                              android.util.Log.w("FamilySafety", "WebSocket closed: " + reason);
+                          }
                           @Override
-                          public void onError(Exception ex) {}
+                          public void onError(Exception ex) {
+                              android.util.Log.e("FamilySafety", "WebSocket error", ex);
+                          }
                       };
                       wsClient.connect();
                   } catch (Exception e) {}
+              }
+
+              private void sendChildStatus(String message) {
+                  try { if (wsClient != null && wsClient.isOpen()) { JSONObject payload = new JSONObject(); payload.put("featureStatus", message); JSONObject packet = new JSONObject(); packet.put("type", "signal"); packet.put("payload", payload.toString()); wsClient.send(packet.toString()); } } catch (Exception ignored) {}
+              }
+
+              // Low-frame-rate JPEG preview over the existing authenticated-family WebSocket.
+              // This is a consent-gated preview, not a covert camera mechanism.
+              private void startCameraStream() {
+                  if (captureCamera != null) { sendChildStatus("Camera stream आधीच सुरू आहे."); return; }
+                  if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                      sendChildStatus("Camera permission नाही; live preview सुरू केला नाही."); return;
+                  }
+                  new Thread(() -> {
+                      try {
+                          int cameraId = 0, count = Camera.getNumberOfCameras(); boolean found = false;
+                          for (int i=0; i<count; i++) { Camera.CameraInfo info = new Camera.CameraInfo(); Camera.getCameraInfo(i, info); if (info.facing == Camera.CameraInfo.CAMERA_FACING_BACK) { cameraId=i; found=true; break; } }
+                          if (!found && count == 0) throw new IllegalStateException("No camera");
+                          captureCamera = Camera.open(cameraId);
+                          Camera.Parameters params = captureCamera.getParameters();
+                          java.util.List<Camera.Size> sizes = params.getSupportedPreviewSizes();
+                          Camera.Size chosen = null;
+                          if (sizes != null) for (Camera.Size size : sizes) if (size.width <= 640 && size.height <= 480 && (chosen == null || size.width * size.height > chosen.width * chosen.height)) chosen = size;
+                          if (chosen != null) params.setPreviewSize(chosen.width, chosen.height);
+                          params.setPreviewFormat(ImageFormat.NV21);
+                          captureCamera.setParameters(params);
+                          final int width = captureCamera.getParameters().getPreviewSize().width;
+                          final int height = captureCamera.getParameters().getPreviewSize().height;
+                          captureTexture = new SurfaceTexture(10);
+                          captureCamera.setPreviewTexture(captureTexture);
+                          captureCamera.setPreviewCallback((data, cam) -> {
+                              long now = System.currentTimeMillis();
+                              if (now - lastVideoFrameAt < 700 || data == null || wsClient == null || !wsClient.isOpen()) return;
+                              lastVideoFrameAt = now;
+                              try {
+                                  ByteArrayOutputStream out = new ByteArrayOutputStream();
+                                  YuvImage yuv = new YuvImage(data, ImageFormat.NV21, width, height, null);
+                                  if (yuv.compressToJpeg(new Rect(0, 0, width, height), 38, out)) {
+                                      JSONObject payload = new JSONObject();
+                                      payload.put("cameraImage", Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP));
+                                      payload.put("cameraCapturedAt", now);
+                                      JSONObject packet = new JSONObject(); packet.put("type", "signal"); packet.put("payload", payload.toString());
+                                      wsClient.send(packet.toString());
+                                  }
+                                  out.close();
+                              } catch (Exception ignored) {}
+                          });
+                          captureCamera.startPreview();
+                          sendChildStatus("Live camera preview सुरू आहे. मुलाच्या फोनवर सुरक्षा सेवा सूचना दिसत राहील.");
+                      } catch (Exception e) {
+                          releaseCaptureCamera();
+                          sendChildStatus("Live camera सुरू करता आला नाही: " + e.getClass().getSimpleName());
+                      }
+                  }).start();
+              }
+
+              // Only used after the child explicitly enables a visibly-notified camera session.
+              private void captureAndSendPhoto() {
+                  if (captureInProgress) return;
+                  if (captureCamera != null) releaseCaptureCamera();
+                  if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) { sendChildStatus("Camera permission नाही; फोटो घेतला नाही."); return; }
+                  captureInProgress = true;
+                  new Thread(() -> {
+                      try {
+                          int cameraId = 0, count = Camera.getNumberOfCameras(); boolean found = false;
+                          for (int i=0; i<count; i++) { Camera.CameraInfo info = new Camera.CameraInfo(); Camera.getCameraInfo(i, info); if (info.facing == Camera.CameraInfo.CAMERA_FACING_BACK) { cameraId=i; found=true; break; } }
+                          if (!found && count == 0) throw new IllegalStateException("No camera");
+                          captureCamera = Camera.open(cameraId); captureTexture = new SurfaceTexture(10); captureCamera.setPreviewTexture(captureTexture); captureCamera.startPreview();
+                          try { Thread.sleep(350); } catch (InterruptedException ignored) {}
+                          captureCamera.takePicture(null, null, (data, camera) -> {
+                              try { if (wsClient != null && wsClient.isOpen()) { JSONObject payload = new JSONObject(); payload.put("cameraImage", Base64.encodeToString(data, Base64.NO_WRAP)); payload.put("cameraCapturedAt", System.currentTimeMillis()); JSONObject packet = new JSONObject(); packet.put("type", "signal"); packet.put("payload", payload.toString()); wsClient.send(packet.toString()); sendChildStatus("सक्रिय camera session मधून फोटो पालकांना पाठवला."); } }
+                              catch (Exception e) { sendChildStatus("फोटो पाठवता आला नाही."); }
+                              finally { releaseCaptureCamera(); captureInProgress=false; }
+                          });
+                      } catch (Exception e) { releaseCaptureCamera(); captureInProgress=false; sendChildStatus("कॅमेरा सुरू करता आला नाही: " + e.getClass().getSimpleName()); }
+                  }).start();
+              }
+              private void releaseCaptureCamera() {
+                  try { if (captureCamera != null) { captureCamera.setPreviewCallback(null); captureCamera.stopPreview(); captureCamera.release(); } } catch (Exception ignored) {} captureCamera=null;
+                  try { if (captureTexture != null) captureTexture.release(); } catch (Exception ignored) {} captureTexture=null;
               }
 
               private void setupLocationTracking() {
@@ -301,7 +971,7 @@ jobs:
                   double sLng = Double.longBitsToDouble(prefs.getLong("safe_lng", 0));
                   if (sLat != 0 && sLng != 0) {
                       Location.distanceBetween(lat, lng, sLat, sLng, res);
-                      if (res[0] > 500) alert = "ALERT: मुलगा सुरक्षित क्षेत्राबाहेर गेला आहे!";
+                      if (res[0] > prefs.getInt("safe_radius", 500)) alert = "ALERT: मुलगा सुरक्षित क्षेत्राबाहेर गेला आहे! अंतर: " + Math.round(res[0]) + "m";
                   }
 
                   if (wsClient != null && wsClient.isOpen()) {
@@ -313,6 +983,10 @@ jobs:
                           payload.put("isStop", isStop);
                           payload.put("duration", duration);
                           payload.put("alert", alert);
+                          if (now - lastUsageReport >= 60000) {
+                              String usage = buildUsageSummary(now);
+                              if (!usage.isEmpty()) { payload.put("usageSummary", usage); lastUsageReport = now; }
+                          }
 
                           JSONObject packet = new JSONObject();
                           packet.put("type", "signal");
@@ -320,6 +994,27 @@ jobs:
                           wsClient.send(packet.toString());
                       } catch (Exception e) {}
                   }
+              }
+
+              private String buildUsageSummary(long now) {
+                  try {
+                      AppOpsManager ops = (AppOpsManager) getSystemService(Context.APP_OPS_SERVICE);
+                      int mode = ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), getPackageName());
+                      if (mode != AppOpsManager.MODE_ALLOWED) return "";
+                      UsageStatsManager manager = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
+                      if (manager == null) return "";
+                      java.util.Map<String, UsageStats> stats = manager.queryAndAggregateUsageStats(now - 24L * 60L * 60L * 1000L, now);
+                      java.util.ArrayList<UsageStats> list = new java.util.ArrayList<>(stats.values());
+                      java.util.Collections.sort(list, (a, b) -> Long.compare(b.getTotalTimeInForeground(), a.getTotalTimeInForeground()));
+                      StringBuilder out = new StringBuilder("मागील 24 तासांचे App Usage (परवानगी दिल्यास):\n");
+                      int count = 0;
+                      for (UsageStats u : list) {
+                          if (u.getTotalTimeInForeground() < 60000 || getPackageName().equals(u.getPackageName())) continue;
+                          if (count++ >= 5) break;
+                          out.append(u.getPackageName()).append(": ").append(u.getTotalTimeInForeground() / 60000).append(" मिनिटे\n");
+                      }
+                      return count == 0 ? "मागील 24 तासांत वापराची नोंद उपलब्ध नाही." : out.toString();
+                  } catch (Exception e) { return ""; }
               }
 
               @Override
@@ -348,6 +1043,7 @@ jobs:
           import android.Manifest;
           import android.app.Activity;
           import android.content.*;
+          import android.content.pm.PackageManager;
           import android.graphics.Bitmap;
           import android.graphics.BitmapFactory;
           import android.hardware.Camera;
@@ -372,10 +1068,12 @@ jobs:
               private String selectedChild = "1";
               private double currentLat = 0, currentLng = 0;
               private WebView mapWebView;
-              private TextView statusText, alertText;
+              private TextView statusText, alertText, usageText;
               private ImageView cameraFeedView;
               private Bitmap latestCameraBitmap = null;
               private ArrayList<String> routePoints = new ArrayList<>();
+              private ArrayList<String> stopPoints = new ArrayList<>();
+              private boolean previousStopState = false;
               private final String SERVER_WS = "wss://family-safety-server-yqco.onrender.com";
 
               @Override
@@ -453,26 +1151,55 @@ jobs:
                   spinner.setSelection(prefs.getInt("child_number", 1) - 1);
                   layout.addView(spinner);
 
+                  Button btnPermissionsSetup = new Button(this);
+                  btnPermissionsSetup.setText("०. एकदाच Permissions Setup मार्गदर्शन");
+                  btnPermissionsSetup.setOnClickListener(v -> {
+                      boolean locationOk = Build.VERSION.SDK_INT < 23 || checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+                      boolean cameraOk = Build.VERSION.SDK_INT < 23 || checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+                      if (!locationOk || !cameraOk) {
+                          java.util.ArrayList<String> asks = new java.util.ArrayList<>();
+                          if (!locationOk) { asks.add(Manifest.permission.ACCESS_FINE_LOCATION); asks.add(Manifest.permission.ACCESS_COARSE_LOCATION); }
+                          if (!cameraOk) asks.add(Manifest.permission.CAMERA);
+                          requestPermissions(asks.toArray(new String[0]), 103);
+                          return;
+                      }
+                      boolean usageOk = false;
+                      try { AppOpsManager ops = (AppOpsManager)getSystemService(Context.APP_OPS_SERVICE); usageOk = ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), getPackageName()) == AppOpsManager.MODE_ALLOWED; } catch (Exception ignored) {}
+                      if (!usageOk) {
+                          new android.app.AlertDialog.Builder(this).setTitle("एकदाच Setup: App Usage")
+                              .setMessage("Android Settings मध्ये Family Safety Pro साठी Usage Access ON करा. परत आल्यावर हाच Setup button दाबा; पुढची Accessibility permission उघडेल.")
+                              .setPositiveButton("Usage Access उघडा", (d,w) -> startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))).setNegativeButton("नंतर", null).show();
+                          return;
+                      }
+                      boolean accessibilityOk = false;
+                      try { int enabled = Settings.Secure.getInt(getContentResolver(), Settings.Secure.ACCESSIBILITY_ENABLED, 0); String services = Settings.Secure.getString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES); accessibilityOk = enabled == 1 && services != null && services.contains(getPackageName()); } catch (Exception ignored) {}
+                      if (!accessibilityOk) {
+                          new android.app.AlertDialog.Builder(this).setTitle("एकदाच Setup: App Blocking")
+                              .setMessage("Android Settings मध्ये Family Safety Pro Accessibility service ON करा. Android या परवानगीला install-time वर देत नाही; वापरकर्त्याने स्वतः ON करणे आवश्यक आहे.")
+                              .setPositiveButton("Accessibility उघडा", (d,w) -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))).setNegativeButton("नंतर", null).show();
+                          return;
+                      }
+                      Toast.makeText(this, "या फोनवरील उपलब्ध permissions सेट आहेत.", Toast.LENGTH_LONG).show();
+                  });
+                  layout.addView(btnPermissionsSetup);
+
                   Button btnStart = new Button(this);
                   btnStart.setText("१. सुरक्षा व GPS ट्रॅकिंग सुरू करा");
                   btnStart.setOnClickListener(v -> {
                       int childNum = spinner.getSelectedItemPosition() + 1;
                       prefs.edit().putInt("child_number", childNum).apply();
 
-                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                          checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                           requestPermissions(new String[]{
                               Manifest.permission.ACCESS_FINE_LOCATION,
-                              Manifest.permission.CAMERA,
-                              Manifest.permission.RECORD_AUDIO
+                              Manifest.permission.ACCESS_COARSE_LOCATION,
+                              Manifest.permission.CAMERA
                           }, 101);
+                          Toast.makeText(this, "पहिल्या सेटअपमध्ये Location आणि Camera परवानग्या विचारा. Location नाकारल्यास tracking सुरू होणार नाही; Camera नाकारल्यास camera सुविधा उपलब्ध होणार नाही.", Toast.LENGTH_LONG).show();
+                          return;
                       }
-                      Intent intent = new Intent(this, LocationService.class);
-                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                          startForegroundService(intent);
-                      } else {
-                          startService(intent);
-                      }
-                      Toast.makeText(this, "ट्रॅकिंग सुरू झाले!", Toast.LENGTH_SHORT).show();
+                      startTrackingService();
                   });
                   layout.addView(btnStart);
 
@@ -485,6 +1212,34 @@ jobs:
                   });
                   layout.addView(btnAppBlock);
 
+                  Button btnUsageAccess = new Button(this);
+                  btnUsageAccess.setText("३. App Usage Duration परवानगी द्या");
+                  btnUsageAccess.setOnClickListener(v -> {
+                      try { startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)); }
+                      catch (Exception e) { Toast.makeText(this, "Usage Access सेटिंग उघडता आली नाही.", Toast.LENGTH_LONG).show(); }
+                  });
+                  layout.addView(btnUsageAccess);
+
+                  Button btnCameraSession = new Button(this);
+                  btnCameraSession.setText("४. Remote Camera Session सुरू/बंद करा");
+                  btnCameraSession.setOnClickListener(v -> {
+                      if (prefs.getBoolean("camera_session_enabled", false)) { prefs.edit().putBoolean("camera_session_enabled", false).apply(); Toast.makeText(this, "Remote Camera Session बंद केले.", Toast.LENGTH_LONG).show(); return; }
+                      if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) { requestPermissions(new String[]{Manifest.permission.CAMERA}, 102); return; }
+                      new android.app.AlertDialog.Builder(this).setTitle("Remote Camera Session")
+                          .setMessage("तुमच्या स्पष्ट संमतीने पालक या सत्रादरम्यान फोटो कॅप्चर करू शकतील. सत्र चालू असताना कायमस्वरूपी सूचना दिसेल. कधीही हे सत्र बंद करू शकता.")
+                          .setNegativeButton("नको", null).setPositiveButton("संमती देऊन सुरू करा", (d,w) -> {
+                              prefs.edit().putBoolean("camera_permission_granted", true).putBoolean("camera_session_enabled", true).apply();
+                              Intent service = new Intent(this, LocationService.class); stopService(service);
+                              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(service); else startService(service);
+                              Toast.makeText(this, "Camera session सुरू करण्याची विनंती केली.", Toast.LENGTH_LONG).show();
+                          }).show();
+                  });
+                  layout.addView(btnCameraSession);
+
+                  TextView privacyNote = new TextView(this);
+                  privacyNote.setText("पहिल्या child setup वेळी Android Location आणि Camera permission मागितली जाईल. नाकारलेली permission संबंधित feature बंद ठेवेल. App Usage साठी Usage Access आणि App Blocking साठी Accessibility Settings मध्ये स्वतंत्र परवानगी द्यावी लागते. Android या special permissions install-time वर आपोआप देत नाही. Camera permission म्हणजे दूरून/लपून camera सुरू करण्याची परवानगी नाही.");
+                  layout.addView(privacyNote);
+
                   Button btnReset = new Button(this);
                   btnReset.setText("मोड बदला (Change Role)");
                   btnReset.setOnClickListener(v -> {
@@ -494,6 +1249,36 @@ jobs:
                   layout.addView(btnReset);
 
                   setContentView(layout);
+              }
+
+              private void startTrackingService() {
+                  Intent intent = new Intent(this, LocationService.class);
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent);
+                  else startService(intent);
+                  Toast.makeText(this, "ट्रॅकिंग सेवा सुरू करण्याची विनंती केली.", Toast.LENGTH_SHORT).show();
+              }
+
+              @Override
+              public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+                  super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                  if (requestCode == 102) {
+                      boolean cameraGranted = checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+                      prefs.edit().putBoolean("camera_permission_granted", cameraGranted).apply();
+                      Toast.makeText(this, cameraGranted ? "Camera permission मिळाली. आता Remote Camera Session सुरू करा." : "Camera permission नाकारली; camera feature बंद.", Toast.LENGTH_LONG).show();
+                      return;
+                  }
+                  if (requestCode == 101) {
+                      boolean locationGranted = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                          || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+                      boolean cameraGranted = checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+                      prefs.edit().putBoolean("camera_permission_granted", cameraGranted).apply();
+                      if (locationGranted) {
+                          startTrackingService();
+                          if (!cameraGranted) Toast.makeText(this, "Camera परवानगी नाकारली आहे; camera सुविधा बंद राहील.", Toast.LENGTH_LONG).show();
+                      } else {
+                          Toast.makeText(this, "Location परवानगी नाकारली आहे; GPS tracking सुरू होणार नाही.", Toast.LENGTH_LONG).show();
+                      }
+                  }
               }
 
               private void showParentDashboard() {
@@ -517,6 +1302,29 @@ jobs:
                       b.setOnClickListener(v -> {
                           selectedChild = id;
                           routePoints.clear();
+                          stopPoints.clear();
+                          previousStopState = false;
+                          // Restore this child's locally saved route and historical stop markers.
+                          try {
+                              org.json.JSONArray saved = new org.json.JSONArray(prefs.getString("route_history_" + id, "[]"));
+                              for (int j = 0; j < saved.length(); j++) routePoints.add(saved.getString(j));
+                              org.json.JSONArray savedStops = new org.json.JSONArray(prefs.getString("route_stops_" + id, "[]"));
+                              for (int j = 0; j < savedStops.length(); j++) stopPoints.add(savedStops.getJSONArray(j).toString());
+                          } catch (Exception ignored) {}
+                          currentLat = 0;
+                          currentLng = 0;
+                          statusText.setText("मुलगा " + id + " ची माहिती मागवत आहे...");
+                          cameraFeedView.setImageDrawable(null);
+                          if (wsClient != null && wsClient.isOpen()) {
+                              try {
+                                  JSONObject request = new JSONObject();
+                                  request.put("type", "selectChild");
+                                  request.put("targetChildId", id);
+                                  wsClient.send(request.toString());
+                              } catch (Exception ignored) {}
+                          } else {
+                              statusText.setText("सर्व्हरशी कनेक्शन नाही. कनेक्शन आणि Family Code तपासा.");
+                          }
                           Toast.makeText(this, "मुलगा " + id + " सिलेक्ट झाला", Toast.LENGTH_SHORT).show();
                       });
                       btnLayout.addView(b);
@@ -531,10 +1339,13 @@ jobs:
                   statusText = new TextView(this);
                   statusText.setText("\nखाजगी सर्व्हरशी संपर्क साधत आहे...");
                   layout.addView(statusText);
+                  usageText = new TextView(this);
+                  usageText.setText("\n📊 App Usage Duration: मुलाच्या फोनवर Usage Access परवानगी दिल्यावर माहिती येईल.");
+                  layout.addView(usageText);
 
                   // Live Camera व Save Buttons
                   TextView lblCam = new TextView(this);
-                  lblCam.setText("\n📸 थेट कॅमेरा फीड:");
+                  lblCam.setText("\n📸 Camera: मुलाच्या फोनवर स्पष्ट संमतीने Remote Camera Session सुरू असणे आवश्यक आहे. सत्र चालू असताना Live Preview किंवा फोटो capture निवडा.");
                   layout.addView(lblCam);
 
                   cameraFeedView = new ImageView(this);
@@ -546,10 +1357,22 @@ jobs:
                   saveActions.setOrientation(LinearLayout.HORIZONTAL);
 
                   Button btnSavePic = new Button(this);
-                  btnSavePic.setText("💾 फोटो गॅलरीत सेव्ह करा");
+                  btnSavePic.setText("💾 फोटो सेव्ह करा (फीड उपलब्ध झाल्यावर)");
                   btnSavePic.setOnClickListener(v -> saveCurrentPhotoToGallery());
                   saveActions.addView(btnSavePic);
 
+                  Button btnLiveStart = new Button(this);
+                  btnLiveStart.setText("▶ Live Camera सुरू करा");
+                  btnLiveStart.setOnClickListener(v -> sendCommand("CAMERA_START"));
+                  saveActions.addView(btnLiveStart);
+                  Button btnLiveStop = new Button(this);
+                  btnLiveStop.setText("■ Live Camera बंद करा");
+                  btnLiveStop.setOnClickListener(v -> sendCommand("CAMERA_STOP"));
+                  saveActions.addView(btnLiveStop);
+                  Button btnCapturePhoto = new Button(this);
+                  btnCapturePhoto.setText("📸 फोटो कॅप्चर करा");
+                  btnCapturePhoto.setOnClickListener(v -> sendCommand("CAMERA_CAPTURE"));
+                  saveActions.addView(btnCapturePhoto);
                   layout.addView(saveActions);
 
                   // ॲप ब्लॉकर टॉगल
@@ -557,6 +1380,11 @@ jobs:
                   chkBlock.setText("गेम्स व सोशल मीडिया ब्लॉक करा (Remote Block)");
                   chkBlock.setOnCheckedChangeListener((btn, isChecked) -> sendCommand(isChecked ? "BLOCK_GAMES" : "UNBLOCK_GAMES"));
                   layout.addView(chkBlock);
+
+                  Button btnGeofence = new Button(this);
+                  btnGeofence.setText("🛡️ सुरक्षित क्षेत्र सेट करा");
+                  btnGeofence.setOnClickListener(v -> showGeofenceDialog());
+                  layout.addView(btnGeofence);
 
                   // Google Maps Button
                   Button btnGmaps = new Button(this);
@@ -568,6 +1396,29 @@ jobs:
                       }
                   });
                   layout.addView(btnGmaps);
+
+                  Button btnHistory = new Button(this);
+                  btnHistory.setText("🧭 सेव्ह केलेला Route History दाखवा");
+                  btnHistory.setOnClickListener(v -> {
+                      try {
+                          org.json.JSONArray saved = new org.json.JSONArray(prefs.getString("route_history_" + selectedChild, "[]"));
+                          routePoints.clear();
+                          for (int j = 0; j < saved.length(); j++) routePoints.add(saved.getString(j));
+                          if (routePoints.isEmpty()) {
+                              Toast.makeText(this, "या मुलासाठी अजून route points सेव्ह नाहीत.", Toast.LENGTH_LONG).show();
+                          } else {
+                              String last = routePoints.get(routePoints.size() - 1).replace("[", "").replace("]", "");
+                              String[] coords = last.split(",");
+                              currentLat = Double.parseDouble(coords[0]);
+                              currentLng = Double.parseDouble(coords[1]);
+                              loadMapWithRoute(currentLat, currentLng, false, 0);
+                              Toast.makeText(this, "" + routePoints.size() + " route points दाखवत आहे.", Toast.LENGTH_SHORT).show();
+                          }
+                      } catch (Exception e) {
+                          Toast.makeText(this, "Route history वाचता आला नाही.", Toast.LENGTH_SHORT).show();
+                      }
+                  });
+                  layout.addView(btnHistory);
 
                   mapWebView = new WebView(this);
                   mapWebView.getSettings().setJavaScriptEnabled(true);
@@ -598,6 +1449,7 @@ jobs:
                                   reg.put("familyCode", prefs.getString("family_code", "family"));
                                   reg.put("role", "PARENT");
                                   send(reg.toString());
+                                  runOnUiThread(() -> statusText.setText("सर्व्हरशी जोडले गेले. मुलगा " + selectedChild + " ची माहिती वाट पाहत आहे..."));
                               } catch (Exception e) {}
                           }
 
@@ -605,9 +1457,16 @@ jobs:
                           public void onMessage(String message) {
                               try {
                                   JSONObject obj = new JSONObject(message);
+                                  if ("status".equals(obj.optString("type"))) {
+                                      String state = obj.optString("message", "");
+                                      runOnUiThread(() -> statusText.setText(state));
+                                      return;
+                                  }
+                                  String fromChildId = obj.optString("fromChildId", "");
+                                  if (!fromChildId.isEmpty() && !fromChildId.equals(selectedChild)) return;
                                   if (obj.has("data")) {
-                                      String payloadStr = obj.getString("data");
-                                      JSONObject data = new JSONObject(payloadStr);
+                                      Object rawData = obj.get("data");
+                                      JSONObject data = rawData instanceof JSONObject ? (JSONObject) rawData : new JSONObject(String.valueOf(rawData));
 
                                       if (data.has("lat")) {
                                           currentLat = data.getDouble("lat");
@@ -617,12 +1476,36 @@ jobs:
                                           String alert = data.optString("alert", "");
 
                                           routePoints.add("[" + currentLat + "," + currentLng + "]");
+                                          // Keep bounded route and stop history locally per child across app restarts.
+                                          if (routePoints.size() > 1000) routePoints.remove(0);
+                                          if (isStop && !previousStopState) {
+                                              stopPoints.add("[" + currentLat + "," + currentLng + "," + dur + "," + System.currentTimeMillis() + "]");
+                                              if (stopPoints.size() > 300) stopPoints.remove(0);
+                                          }
+                                          previousStopState = isStop;
+                                          try {
+                                              org.json.JSONArray saved = new org.json.JSONArray();
+                                              for (String point : routePoints) saved.put(point);
+                                              org.json.JSONArray savedStops = new org.json.JSONArray();
+                                              for (String point : stopPoints) savedStops.put(new org.json.JSONArray(point));
+                                              prefs.edit().putString("route_history_" + selectedChild, saved.toString())
+                                                  .putString("route_stops_" + selectedChild, savedStops.toString()).apply();
+                                          } catch (Exception ignored) {}
 
                                           runOnUiThread(() -> {
                                               statusText.setText("👦 मुलगा " + selectedChild + " चे लोकेशन:\nअक्षांश: " + currentLat + ", रेखांश: " + currentLng + (isStop ? "\n🛑 थांबा: " + dur + " मिनिटे" : ""));
                                               if (!alert.isEmpty()) alertText.setText("🚨 " + alert);
                                               loadMapWithRoute(currentLat, currentLng, isStop, dur);
                                           });
+                                      }
+
+                                      if (data.has("usageSummary")) {
+                                          String usageSummary = data.optString("usageSummary", "");
+                                          runOnUiThread(() -> usageText.setText("📊 App Usage Duration\n" + usageSummary));
+                                      }
+                                      if (data.has("featureStatus")) {
+                                          String featureStatus = data.optString("featureStatus", "");
+                                          runOnUiThread(() -> statusText.setText(featureStatus));
                                       }
 
                                       if (data.has("cameraImage")) {
@@ -641,6 +1524,29 @@ jobs:
                       };
                       wsClient.connect();
                   } catch (Exception e) {}
+              }
+
+              private void showGeofenceDialog() {
+                  LinearLayout fields = new LinearLayout(this);
+                  fields.setOrientation(LinearLayout.VERTICAL);
+                  EditText lat = new EditText(this); lat.setHint("Safe latitude (उदा. 18.501)"); lat.setInputType(8194);
+                  EditText lng = new EditText(this); lng.setHint("Safe longitude (उदा. 73.863)"); lng.setInputType(8194);
+                  EditText radius = new EditText(this); radius.setHint("Radius metres (उदा. 500)"); radius.setInputType(2); radius.setText("500");
+                  fields.addView(lat); fields.addView(lng); fields.addView(radius);
+                  new android.app.AlertDialog.Builder(this).setTitle("Geofence सेटिंग्ज")
+                      .setMessage("सुरक्षित ठिकाणाचे coordinates भरा. मुलाच्या फोनवर GPS सेवा चालू असणे आवश्यक आहे.")
+                      .setView(fields).setNegativeButton("रद्द", null)
+                      .setPositiveButton("सेव्ह व पाठवा", (d, which) -> {
+                          try {
+                              double la = Double.parseDouble(lat.getText().toString().trim());
+                              double lo = Double.parseDouble(lng.getText().toString().trim());
+                              int r = Integer.parseInt(radius.getText().toString().trim());
+                              if (la < -90 || la > 90 || lo < -180 || lo > 180 || r < 50 || r > 50000) throw new IllegalArgumentException();
+                              if (wsClient == null || !wsClient.isOpen()) { Toast.makeText(this, "सर्व्हर जोडलेला नाही.", Toast.LENGTH_LONG).show(); return; }
+                              JSONObject c = new JSONObject(); c.put("type", "command"); c.put("targetChildId", selectedChild); c.put("command", "SET_GEOFENCE"); c.put("latitude", la); c.put("longitude", lo); c.put("radius", r); wsClient.send(c.toString());
+                              Toast.makeText(this, "Geofence सेटिंग्ज मुलाच्या फोनला पाठवल्या.", Toast.LENGTH_LONG).show();
+                          } catch (Exception e) { Toast.makeText(this, "Latitude/Longitude आणि 50–50000m radius योग्य भरा.", Toast.LENGTH_LONG).show(); }
+                      }).show();
               }
 
               private void sendCommand(String cmd) {
@@ -678,8 +1584,14 @@ jobs:
                   }
                   poly.append("]");
 
-                  String stopMarker = isStop ? "L.circleMarker([" + lat + "," + lng + "], {color: 'red', radius: 12}).addTo(map).bindPopup('🛑 थांबा: " + duration + " मिनिटे').openPopup();" : "";
-                  String html = "<html><head><link rel='stylesheet' href='https://unpkg.com/leaflet/dist/leaflet.css'/><script src='https://unpkg.com/leaflet/dist/leaflet.js'></script></head><body style='margin:0;padding:0;'><div id='map' style='width:100%;height:100vh;'></div><script>var map=L.map('map').setView([" + lat + "," + lng + "],16);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);var path = " + poly.toString() + "; if(path.length > 1) { L.polyline(path, {color: 'blue', weight: 5}).addTo(map); } L.marker([" + lat + "," + lng + "]).addTo(map).bindPopup('मुलगा " + selectedChild + "').openPopup();" + stopMarker + "</script></body></html>";
+                  StringBuilder stops = new StringBuilder("[");
+                  for (int i = 0; i < stopPoints.size(); i++) {
+                      stops.append(stopPoints.get(i));
+                      if (i < stopPoints.size() - 1) stops.append(",");
+                  }
+                  stops.append("]");
+                  String currentStopMarker = isStop ? "L.circleMarker([" + lat + "," + lng + "], {color: 'red', radius: 12}).addTo(map).bindPopup('🛑 सध्याचा थांबा: " + duration + " मिनिटे').openPopup();" : "";
+                  String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'/><link rel='stylesheet' href='https://unpkg.com/leaflet/dist/leaflet.css'/><script src='https://unpkg.com/leaflet/dist/leaflet.js'></script></head><body style='margin:0;padding:0;'><div id='map' style='width:100%;height:100vh;'></div><script>var map=L.map('map').setView([" + lat + "," + lng + "],16);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);var path = " + poly.toString() + "; if(path.length > 1) { L.polyline(path, {color: 'blue', weight: 5}).addTo(map); } var stops = " + stops.toString() + "; for(var i=0;i<stops.length;i++){ L.circleMarker([stops[i][0],stops[i][1]], {color:'red',radius:8}).addTo(map).bindPopup('🛑 थांबा: '+stops[i][2]+' मिनिटे'); } L.marker([" + lat + "," + lng + "]).addTo(map).bindPopup('मुलगा " + selectedChild + "').openPopup();" + currentStopMarker + "</script></body></html>";
                   mapWebView.loadData(html, "text/html", "UTF-8");
               }
 
